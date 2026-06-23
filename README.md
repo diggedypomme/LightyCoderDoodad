@@ -80,6 +80,7 @@ Batch launchers are also included:
 start_ui.bat              :: default, no UART
 start_ui_no_uart.bat      :: explicit no-UART mode
 start_ui_with_uart.bat    :: UART logging enabled
+start_ui_no_env.bat       :: no venv, uses system python, no UART
 ```
 
 ## Device Address
