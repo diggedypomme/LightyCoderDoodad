@@ -17,20 +17,24 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.GridLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -59,7 +63,8 @@ public class MainActivity extends Activity {
     private TextView status;
     private LinearLayout content;
     private GridLayout padGrid;
-    private ImageView imagePreview;
+    private ImageCropView imageCropView;
+    private Bitmap sourceBitmap;
     private final int[] pixels = new int[CELL_COUNT];
     private final boolean[] selected = new boolean[CELL_COUNT];
     private final Button[] cells = new Button[CELL_COUNT];
@@ -70,13 +75,14 @@ public class MainActivity extends Activity {
     private int animationMode = 0;
     private int animationStep = 0;
     private boolean animationRunning = false;
+    private int animationDelayMs = 260;
 
     private final Runnable animationTick = new Runnable() {
         @Override public void run() {
             if (!animationRunning) return;
             renderAnimationFrame(animationMode, animationStep++);
             sendPixels(false);
-            main.postDelayed(this, 260);
+            main.postDelayed(this, animationDelayMs);
         }
     };
 
@@ -240,17 +246,26 @@ public class MainActivity extends Activity {
         content.removeAllViews();
         LinearLayout panel = card();
         panel.addView(label("Images"));
-        panel.addView(text("Choose an image from your phone. It is centre-cropped, downsampled to 12x12, and sent through paint mode."));
-        LinearLayout row = row();
-        addButton(row, "Choose Image", v -> pickImage(), 1, BLUE);
-        addButton(row, "Send Image", v -> sendPixels(true), 1, Color.rgb(42, 157, 93));
-        panel.addView(row);
-        imagePreview = new ImageView(this);
-        imagePreview.setImageBitmap(bitmapFromPixels());
-        imagePreview.setBackgroundColor(Color.rgb(230, 235, 241));
-        imagePreview.setAdjustViewBounds(true);
-        imagePreview.setPadding(dp(8), dp(8), dp(8), dp(8));
-        panel.addView(imagePreview, new LinearLayout.LayoutParams(-1, dp(380)));
+        panel.addView(text("Load from gallery or files, then drag and pinch the preview. The visible square is sampled to 12x12 when you send."));
+
+        LinearLayout sourceRow = row();
+        addButton(sourceRow, "Gallery", v -> pickImageFromGallery(), 1, BLUE);
+        addButton(sourceRow, "Files", v -> pickImageFromFiles(), 1, Color.rgb(230, 235, 241));
+        addButton(sourceRow, "Send Image", v -> sendImageCrop(), 1, Color.rgb(42, 157, 93));
+        panel.addView(sourceRow);
+
+        LinearLayout cropRow = row();
+        addButton(cropRow, "Centre Crop", v -> { if (imageCropView != null) imageCropView.resetCrop(); }, 1, Color.rgb(230, 235, 241));
+        addButton(cropRow, "Fit", v -> { if (imageCropView != null) imageCropView.resetFit(); }, 1, Color.rgb(230, 235, 241));
+        addButton(cropRow, "Zoom +", v -> { if (imageCropView != null) imageCropView.zoomBy(1.12f); }, 1, Color.rgb(230, 235, 241));
+        addButton(cropRow, "Zoom -", v -> { if (imageCropView != null) imageCropView.zoomBy(0.90f); }, 1, Color.rgb(230, 235, 241));
+        panel.addView(cropRow);
+
+        imageCropView = new ImageCropView(this);
+        imageCropView.setBitmap(sourceBitmap == null ? bitmapFromPixels12() : sourceBitmap);
+        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(-1, -2);
+        previewParams.setMargins(0, dp(8), 0, 0);
+        panel.addView(imageCropView, previewParams);
         content.addView(panel);
     }
 
@@ -270,7 +285,16 @@ public class MainActivity extends Activity {
         addButton(row2, "Sparkle", v -> startAnimation(4), 1, BLUE);
         addButton(row2, "Scanner", v -> startAnimation(5), 1, BLUE);
         panel.addView(row2);
-        addButton(panel, "Stop Animation", v -> animationRunning = false, 1, Color.rgb(230, 235, 241));
+        LinearLayout row3 = row();
+        addButton(row3, "Tetris", v -> startAnimation(6), 1, Color.rgb(236, 143, 40));
+        addButton(row3, "Snake", v -> startAnimation(7), 1, Color.rgb(42, 157, 93));
+        addButton(row3, "Comet", v -> startAnimation(8), 1, Color.rgb(119, 92, 232));
+        panel.addView(row3);
+        LinearLayout speedRow = row();
+        addButton(speedRow, "Slower", v -> changeAnimationSpeed(60), 1, Color.rgb(230, 235, 241));
+        addButton(speedRow, "Stop", v -> stopAnimation(), 1, Color.rgb(210, 74, 74));
+        addButton(speedRow, "Faster", v -> changeAnimationSpeed(-60), 1, Color.rgb(230, 235, 241));
+        panel.addView(speedRow);
         content.addView(panel);
     }
 
@@ -279,6 +303,7 @@ public class MainActivity extends Activity {
         brush.setTextColor(MUTED);
         parent.addView(brush);
         LinearLayout colours = row();
+        addColourButton(colours, "Black", Color.BLACK);
         addColourButton(colours, "Red", Color.RED);
         addColourButton(colours, "Green", Color.GREEN);
         addColourButton(colours, "Blue", Color.BLUE);
@@ -475,10 +500,22 @@ public class MainActivity extends Activity {
         if (!ok) toast("BLE write failed to queue");
     }
 
-    private void pickImage() {
+    private void pickImageFromFiles() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
         startActivityForResult(Intent.createChooser(intent, "Choose image"), 20);
+    }
+
+    private void pickImageFromGallery() {
+        Intent intent;
+        if (Build.VERSION.SDK_INT >= 33) {
+            intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
+        } else {
+            intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            intent.setType("image/*");
+        }
+        startActivityForResult(intent, 20);
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -486,34 +523,180 @@ public class MainActivity extends Activity {
         if (requestCode != 20 || resultCode != RESULT_OK || data == null) return;
         try {
             Uri uri = data.getData();
+            if (uri == null) return;
             InputStream stream = getContentResolver().openInputStream(uri);
             Bitmap bitmap = BitmapFactory.decodeStream(stream);
-            if (bitmap != null) loadBitmapToPixels(bitmap);
-            showImagesPage();
+            if (bitmap != null) {
+                sourceBitmap = bitmap;
+                showImagesPage();
+            }
         } catch (Exception e) {
             toast(e.getMessage());
         }
     }
 
-    private void loadBitmapToPixels(Bitmap bitmap) {
-        int size = Math.min(bitmap.getWidth(), bitmap.getHeight());
-        int left = (bitmap.getWidth() - size) / 2;
-        int top = (bitmap.getHeight() - size) / 2;
-        Bitmap crop = Bitmap.createBitmap(bitmap, left, top, size, size);
-        Bitmap small = Bitmap.createScaledBitmap(crop, W, H, true);
-        for (int y = 0; y < H; y++) {
-            for (int x = 0; x < W; x++) {
-                int c = small.getPixel(x, y);
-                pixels[y * W + x] = Color.rgb(Color.red(c), Color.green(c), Color.blue(c));
-            }
+    private void sendImageCrop() {
+        if (imageCropView != null) {
+            int[] sampled = imageCropView.sample12x12();
+            System.arraycopy(sampled, 0, pixels, 0, CELL_COUNT);
+            Arrays.fill(selected, false);
         }
-        Arrays.fill(selected, false);
+        sendPixels(true);
     }
 
-    private Bitmap bitmapFromPixels() {
+    private Bitmap bitmapFromPixels12() {
         Bitmap bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
         for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) bitmap.setPixel(x, y, pixels[y * W + x]);
-        return Bitmap.createScaledBitmap(bitmap, dp(360), dp(360), false);
+        return bitmap;
+    }
+
+    private class ImageCropView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private Bitmap bitmap;
+        private float scale = 1f;
+        private float offsetX = 0f;
+        private float offsetY = 0f;
+        private float lastX = 0f;
+        private float lastY = 0f;
+        private float startDistance = 0f;
+        private float startScale = 1f;
+        private boolean fitMode = false;
+
+        ImageCropView(MainActivity context) {
+            super(context);
+            setBackgroundColor(Color.rgb(226, 232, 239));
+            borderPaint.setColor(Color.rgb(93, 107, 122));
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(dp(2));
+        }
+
+        void setBitmap(Bitmap bitmap) {
+            this.bitmap = bitmap;
+            post(this::resetCrop);
+        }
+
+        void resetCrop() {
+            fitMode = false;
+            resetTransform(false);
+        }
+
+        void resetFit() {
+            fitMode = true;
+            resetTransform(true);
+        }
+
+        void zoomBy(float factor) {
+            if (bitmap == null) return;
+            float cx = getWidth() / 2f;
+            float cy = getHeight() / 2f;
+            float next = clampScale(scale * factor);
+            offsetX = cx - (cx - offsetX) * next / scale;
+            offsetY = cy - (cy - offsetY) * next / scale;
+            scale = next;
+            invalidate();
+        }
+
+        int[] sample12x12() {
+            int[] out = new int[CELL_COUNT];
+            Arrays.fill(out, Color.BLACK);
+            if (bitmap == null || getWidth() <= 0 || getHeight() <= 0) return out;
+            float size = Math.min(getWidth(), getHeight());
+            float left = (getWidth() - size) / 2f;
+            float top = (getHeight() - size) / 2f;
+            for (int y = 0; y < H; y++) {
+                for (int x = 0; x < W; x++) {
+                    float viewX = left + (x + 0.5f) * size / W;
+                    float viewY = top + (y + 0.5f) * size / H;
+                    int srcX = Math.round((viewX - offsetX) / scale);
+                    int srcY = Math.round((viewY - offsetY) / scale);
+                    if (srcX >= 0 && srcY >= 0 && srcX < bitmap.getWidth() && srcY < bitmap.getHeight()) {
+                        int c = bitmap.getPixel(srcX, srcY);
+                        out[y * W + x] = Color.rgb(Color.red(c), Color.green(c), Color.blue(c));
+                    }
+                }
+            }
+            return out;
+        }
+
+        @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int width = MeasureSpec.getSize(widthMeasureSpec);
+            if (width <= 0) width = dp(320);
+            setMeasuredDimension(width, width);
+        }
+
+        @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            resetTransform(fitMode);
+        }
+
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float size = Math.min(getWidth(), getHeight());
+            float left = (getWidth() - size) / 2f;
+            float top = (getHeight() - size) / 2f;
+            RectF crop = new RectF(left, top, left + size, top + size);
+            canvas.drawColor(Color.rgb(226, 232, 239));
+            int save = canvas.save();
+            canvas.clipRect(crop);
+            canvas.drawColor(Color.rgb(16, 20, 26));
+            if (bitmap != null) {
+                RectF dest = new RectF(offsetX, offsetY, offsetX + bitmap.getWidth() * scale, offsetY + bitmap.getHeight() * scale);
+                canvas.drawBitmap(bitmap, null, dest, paint);
+            }
+            canvas.restoreToCount(save);
+            canvas.drawRect(crop, borderPaint);
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent event) {
+            if (bitmap == null) return true;
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                lastX = event.getX();
+                lastY = event.getY();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
+                startDistance = pointerDistance(event);
+                startScale = scale;
+                return true;
+            }
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (event.getPointerCount() >= 2) {
+                    float distance = pointerDistance(event);
+                    if (startDistance > 0f) scale = clampScale(startScale * distance / startDistance);
+                } else {
+                    offsetX += event.getX() - lastX;
+                    offsetY += event.getY() - lastY;
+                    lastX = event.getX();
+                    lastY = event.getY();
+                }
+                invalidate();
+                return true;
+            }
+            return true;
+        }
+
+        private void resetTransform(boolean fit) {
+            if (bitmap == null || getWidth() <= 0 || getHeight() <= 0) return;
+            float viewSize = Math.min(getWidth(), getHeight());
+            float sx = viewSize / bitmap.getWidth();
+            float sy = viewSize / bitmap.getHeight();
+            scale = fit ? Math.min(sx, sy) : Math.max(sx, sy);
+            offsetX = (getWidth() - bitmap.getWidth() * scale) / 2f;
+            offsetY = (getHeight() - bitmap.getHeight() * scale) / 2f;
+            invalidate();
+        }
+
+        private float clampScale(float value) {
+            return Math.max(0.08f, Math.min(24f, value));
+        }
+
+        private float pointerDistance(MotionEvent event) {
+            float dx = event.getX(0) - event.getX(1);
+            float dy = event.getY(0) - event.getY(1);
+            return (float)Math.sqrt(dx * dx + dy * dy);
+        }
     }
 
     private void startAnimation(int mode) {
@@ -547,7 +730,23 @@ public class MainActivity extends Activity {
             int x = t % (W * 2 - 2);
             if (x >= W) x = W * 2 - 2 - x;
             for (int y = 0; y < H; y++) pixels[y * W + x] = scaledColor(selectedColor);
+        } else if (mode == 6) {
+            renderTetris(t);
+        } else if (mode == 7) {
+            renderSnake(t);
+        } else if (mode == 8) {
+            renderComet(t);
         }
+    }
+
+    private void changeAnimationSpeed(int delta) {
+        animationDelayMs = Math.max(60, Math.min(1000, animationDelayMs + delta));
+        status.setText("Animation speed " + animationDelayMs + " ms");
+    }
+
+    private void stopAnimation() {
+        animationRunning = false;
+        status.setText("Animation stopped");
     }
 
     private void renderHeart(int t) {
@@ -563,6 +762,73 @@ public class MainActivity extends Activity {
                 {5,8},{6,8}
         };
         for (int[] xy : coords) pixels[xy[1] * W + xy[0]] = color;
+    }
+
+    private void renderTetris(int t) {
+        int[][] board = {
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {0,0,0,0,0,0,0,0,0,0,0,0},
+                {3,3,0,2,2,2,0,6,6,0,4,0},
+                {3,0,0,0,2,0,0,0,6,6,4,0},
+                {1,1,1,5,5,0,7,7,7,4,4,0},
+                {1,0,0,5,5,0,0,7,0,0,4,0}
+        };
+        int[] palette = {Color.BLACK, Color.CYAN, Color.rgb(250, 214, 60), Color.rgb(233, 84, 96), Color.rgb(82, 199, 93), Color.rgb(147, 99, 230), Color.rgb(255, 146, 43), Color.rgb(62, 132, 235)};
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) pixels[y * W + x] = dim(palette[board[y][x]], 0.80f);
+        int drop = t % 9;
+        int shift = (t / 9) % 4;
+        int color = Color.HSVToColor(new float[]{(t * 24) % 360, 0.85f, brightness / 255f});
+        int baseX = 4 + (shift == 1 ? 1 : shift == 2 ? 2 : 0);
+        setPixelSafe(baseX, drop, color);
+        setPixelSafe(baseX + 1, drop, color);
+        setPixelSafe(baseX, drop + 1, color);
+        setPixelSafe(baseX + 1, drop + 1, color);
+    }
+
+    private void renderSnake(int t) {
+        int[][] path = {
+                {1,1},{2,1},{3,1},{4,1},{5,1},{6,1},{7,1},{8,1},{9,1},{10,1},
+                {10,2},{10,3},{9,3},{8,3},{7,3},{6,3},{5,3},{4,3},{3,3},{2,3},{1,3},
+                {1,4},{1,5},{2,5},{3,5},{4,5},{5,5},{6,5},{7,5},{8,5},{9,5},{10,5},
+                {10,6},{10,7},{9,7},{8,7},{7,7},{6,7},{5,7},{4,7},{3,7},{2,7},{1,7},
+                {1,8},{1,9},{2,9},{3,9},{4,9},{5,9},{6,9},{7,9},{8,9},{9,9},{10,9}
+        };
+        int appleIndex = (t / 15) % path.length;
+        int[] apple = path[appleIndex];
+        setPixelSafe(apple[0], apple[1], Color.rgb(230, 45, 45));
+        for (int i = 0; i < 12; i++) {
+            int pos = (t + path.length - i) % path.length;
+            int[] xy = path[pos];
+            int green = Math.max(55, 240 - i * 14);
+            setPixelSafe(xy[0], xy[1], Color.rgb(25, green, 65));
+        }
+    }
+
+    private void renderComet(int t) {
+        int cx = t % W;
+        int cy = (t / 2) % H;
+        for (int i = 0; i < 12; i++) {
+            int x = cx - i;
+            int y = cy - i / 3;
+            if (x < 0) x += W;
+            if (y < 0) y += H;
+            float value = Math.max(0.08f, (12 - i) / 12f) * brightness / 255f;
+            setPixelSafe(x, y, Color.HSVToColor(new float[]{(t * 9 + i * 12) % 360, 0.95f, value}));
+        }
+    }
+
+    private int dim(int color, float factor) {
+        return Color.rgb((int)(Color.red(color) * factor), (int)(Color.green(color) * factor), (int)(Color.blue(color) * factor));
+    }
+
+    private void setPixelSafe(int x, int y, int color) {
+        if (x >= 0 && y >= 0 && x < W && y < H) pixels[y * W + x] = color;
     }
 
     private void toast(String message) {
