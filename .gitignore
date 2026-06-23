@@ -3,9 +3,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 device_config.json
-app/observations.jsonlandroid/.gradle/
+app/observations.jsonl
+android/.gradle/
+android/.idea/
 android/build/
 android/app/build/
 android/local.properties
+android/hs_err_pid*.log
 *.apk
 *.aab

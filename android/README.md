@@ -28,12 +28,12 @@ Or from a machine with Android Gradle tooling installed:
 
 ```bat
 cd LightyCoderDoodad\android
-gradle assembleDebug
+gradlew.bat assembleDebug
 ```
 
 On this machine Android Studio is installed at `C:\Program Files\Android\Android Studio\bin\studio64.exe`, and `local.properties` points at `C:\Users\superpomme\AppData\Local\Android\Sdk`. Run `..\open_android_studio.bat` from the repo root, or open the `android` folder manually in Android Studio.
 
-A Gradle wrapper is not included yet. Android Studio is the easiest first path and can sync the project using its configured Gradle support.
+A Gradle wrapper is included and pinned to Gradle 9.1.0. Android Studio should sync using that wrapper.
 
 ## Permissions
 
