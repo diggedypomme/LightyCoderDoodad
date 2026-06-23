@@ -12,3 +12,10 @@ android {
         versionName "0.1"
     }
 }
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("LightyCoderDoodad-${variant.name}.apk")
+        }
+    }
+}
