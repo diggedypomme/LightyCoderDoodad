@@ -15,7 +15,7 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("LightyCoderDoodad-${variant.name}.apk")
+            output.outputFileName.set("LightyCoderDoodad.apk")
         }
     }
 }
