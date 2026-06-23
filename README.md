@@ -74,6 +74,14 @@ If you do not have UART connected, start with:
 venv\Scripts\python.exe app\server_live.py --no-uart
 ```
 
+Batch launchers are also included:
+
+```bat
+start_ui.bat              :: default, no UART
+start_ui_no_uart.bat      :: explicit no-UART mode
+start_ui_with_uart.bat    :: UART logging enabled
+```
+
 ## Device Address
 
 The app and scripts choose the BLE address in this order:

@@ -1,4 +1,4 @@
-# Server Files
+﻿# Server Files
 
 There are two server entry points because UART logging is useful for hardware work but annoying as a default dependency.
 
@@ -62,3 +62,13 @@ venv\Scripts\python.exe app\server_live.py --no-uart
 ```
 
 Use plain `server.py` if they only want the web BLE controls and no serial logging at all.
+## Batch Launchers
+
+```bat
+start_ui.bat              :: default, no UART, runs app\server_live.py --no-uart
+start_ui_no_uart.bat      :: explicit no-UART mode
+start_ui_with_uart.bat    :: UART logging enabled, runs app\server_live.py
+```
+
+All three expect `venv\Scripts\python.exe` to exist. Create it with `python -m venv venv` and install dependencies with `venv\Scripts\python.exe -m pip install -r requirements.txt`.
+
