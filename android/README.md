@@ -13,8 +13,21 @@ It is deliberately separate from the Python/web UI so both can evolve independen
 - Brightness slider.
 - Multi-cell selection.
 - Send selected/generated grid as a compact canvas.
-- Image page that loads an image, centre-crops it, downsamples it to 12x12, and sends it.
-- Animation page with generated wipe/pulse/rainbow examples streamed as compact canvases.
+- Image page that loads from gallery or files, supports centre crop/fit/drag/pinch zoom, has a pixel-preview toggle, downsamples the visible crop to 12x12, and sends it.
+- Animation page with wipe/pulse/rainbow/heart/sparkle/scanner/tetris/snake/comet examples streamed as compact canvases.
+- Animation stop, faster, and slower controls.
+
+## Prebuilt Debug APK
+
+A debug APK is included at:
+
+```text
+android/apk/LightyCoderDoodad-debug.apk
+```
+
+You should really build it yourself from source rather than trusting random APKs from GitHub. I cannot be responsible for issues caused by installing prebuilt binaries from the internet.
+
+Or just install it anyway, I'm not your mum.
 
 ## Build
 
@@ -63,7 +76,6 @@ The Android app uses the same working path as the Python UI:
 ## Important caveats
 
 - This is a first native Android scaffold, not a polished Play Store app.
-- It has not been built in this environment because the Android SDK is not installed here.
 - It does not yet persist a chosen device address.
 - It does not yet include a manual device picker if several matching devices are present.
 - If image frames fail to send, try simpler images or the pad page first to confirm BLE is working.

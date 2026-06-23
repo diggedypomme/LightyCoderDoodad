@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private GridLayout padGrid;
     private ImageCropView imageCropView;
     private Bitmap sourceBitmap;
+    private boolean imagePixelPreview = false;
     private final int[] pixels = new int[CELL_COUNT];
     private final boolean[] selected = new boolean[CELL_COUNT];
     private final Button[] cells = new Button[CELL_COUNT];
@@ -260,6 +261,16 @@ public class MainActivity extends Activity {
         addButton(cropRow, "Zoom +", v -> { if (imageCropView != null) imageCropView.zoomBy(1.12f); }, 1, Color.rgb(230, 235, 241));
         addButton(cropRow, "Zoom -", v -> { if (imageCropView != null) imageCropView.zoomBy(0.90f); }, 1, Color.rgb(230, 235, 241));
         panel.addView(cropRow);
+
+        CheckBox pixelPreview = new CheckBox(this);
+        pixelPreview.setText("Pixel preview: show the exact 12x12 output");
+        pixelPreview.setTextColor(TEXT);
+        pixelPreview.setChecked(imagePixelPreview);
+        pixelPreview.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            imagePixelPreview = isChecked;
+            if (imageCropView != null) imageCropView.invalidate();
+        });
+        panel.addView(pixelPreview);
 
         imageCropView = new ImageCropView(this);
         imageCropView.setBitmap(sourceBitmap == null ? bitmapFromPixels12() : sourceBitmap);
@@ -641,11 +652,29 @@ public class MainActivity extends Activity {
             canvas.clipRect(crop);
             canvas.drawColor(Color.rgb(16, 20, 26));
             if (bitmap != null) {
-                RectF dest = new RectF(offsetX, offsetY, offsetX + bitmap.getWidth() * scale, offsetY + bitmap.getHeight() * scale);
-                canvas.drawBitmap(bitmap, null, dest, paint);
+                if (imagePixelPreview) {
+                    drawPixelPreview(canvas, crop);
+                } else {
+                    RectF dest = new RectF(offsetX, offsetY, offsetX + bitmap.getWidth() * scale, offsetY + bitmap.getHeight() * scale);
+                    canvas.drawBitmap(bitmap, null, dest, paint);
+                }
             }
             canvas.restoreToCount(save);
             canvas.drawRect(crop, borderPaint);
+        }
+
+        private void drawPixelPreview(Canvas canvas, RectF crop) {
+            int[] sampled = sample12x12();
+            float cellW = crop.width() / W;
+            float cellH = crop.height() / H;
+            Paint pixelPaint = new Paint();
+            pixelPaint.setStyle(Paint.Style.FILL);
+            for (int y = 0; y < H; y++) {
+                for (int x = 0; x < W; x++) {
+                    pixelPaint.setColor(sampled[y * W + x]);
+                    canvas.drawRect(crop.left + x * cellW, crop.top + y * cellH, crop.left + (x + 1) * cellW, crop.top + (y + 1) * cellH, pixelPaint);
+                }
+            }
         }
 
         @Override public boolean onTouchEvent(MotionEvent event) {

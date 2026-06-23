@@ -117,6 +117,8 @@ open_android_studio.bat
 
 See [Android app](android/README.md).
 
+A debug APK is included at [android/apk/LightyCoderDoodad-debug.apk](android/apk/LightyCoderDoodad-debug.apk), with the usual warning: build from source if you want to be sensible, because random APKs from GitHub are a trust decision.
+
 ## Documentation
 
 - [Setup](docs/SETUP.md)
