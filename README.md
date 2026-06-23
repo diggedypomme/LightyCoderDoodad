@@ -1,21 +1,60 @@
 # LightyCoderDoodad
 
-Local tools for using the Tech Will Save Us Arcade Coder after the original app ecosystem disappeared.
+LightyCoderDoodad is a public handoff/project repo for the Tech Will Save Us Arcade Coder.
 
-The current working path uses the stock onboard `paint` module and sends compact canvas payloads over BLE. It does not require changing the firmware.
+It has two connected sides:
 
-## What is included
+1. **Stock app/protocol mapping** - notes and tools for understanding how the original stock firmware talks over BLE, runs onboard modules, and accepts app/game bundles.
+2. **Usable controllers** - a Python web UI, command-line scripts, and an Android scaffold that use the working stock `paint` path to control the 12x12 LED matrix without changing firmware.
 
-- `app/` - local web UI and Python backend.
-- `scripts/` - command-line tools for scanning, starting onboard modules, sending canvases, and sending pixels.
-- `stock_protocol/` - small BLE/protobuf helper used by the app and scripts.
-- `docs/` - setup notes, protocol notes, app-bundle handoff notes, and server notes.
+The currently reliable path is: start the stock onboard `paint` module, then send compact canvas frames over BLE.
+
+## Project Tracks
+
+### 1. Stock App / Protocol Continuation Work
+
+This is the handoff material for people who want to continue figuring out the original app model.
+
+Important findings so far:
+
+- The board uses an ESP32 and exposes a BLE service with command, callback, and game/app upload characteristics.
+- The firmware contains onboard modules such as `paint`, `testmode`, `initial-interaction`, and `matrix`.
+- The firmware appears to run onboard and uploaded app bundles through an embedded VM.
+- The game/app upload path is real: we got named app saves working.
+- The corrected app name field is `Game.field2`; once that was used, logs showed names like `Saved game 'testclone'` and `Starting game 'testclone'`.
+- Uploading a named bundle is not the same as having a valid runnable bundle. Plain JavaScript hit serializer limits, and isolated bytecode fragments were not complete standalone VM apps.
+- The exact complete bundle/container format is still unresolved.
+
+Start here if you want to continue that side:
+
+- [How the stock app path works](docs/HOW_IT_WORKS.md)
+- [App bundle notes / continuation work](docs/APP_BUNDLE_NOTES.md)
+- [Reference notes](docs/reference/README.md)
+
+### 2. Usable UI / Control Tools
+
+This is the practical side: use the device as a small 12x12 BLE display while leaving stock firmware in place.
+
+Included controllers:
+
+- `app/` - local Python web UI and backend.
+- `scripts/` - command-line tools for scanning, starting modules, sending canvases, and sending pixels.
 - `android/` - native Android controller scaffold.
+- `stock_protocol/` - small BLE/protobuf helper used by the Python tools.
 
-## Quick start
+The web UI includes:
+
+- Onboard module starter.
+- Pixel grid sender.
+- Image loader/crop/downsample sender.
+- Animation runner.
+- Experiments page.
+- Lower-level hex/observe/sweep tools.
+
+## Quick Start: Web UI
 
 ```bat
-py -m venv venv
+python -m venv venv
 venv\Scripts\python.exe -m pip install -r requirements.txt
 venv\Scripts\python.exe scripts\scan_devices.py --save-first-likely
 venv\Scripts\python.exe app\server_live.py
@@ -29,7 +68,13 @@ Open:
 - Experiments: http://127.0.0.1:8765/experiments.html
 - Animations: http://127.0.0.1:8765/animations.html
 
-## Device address
+If you do not have UART connected, start with:
+
+```bat
+venv\Scripts\python.exe app\server_live.py --no-uart
+```
+
+## Device Address
 
 The app and scripts choose the BLE address in this order:
 
@@ -47,6 +92,31 @@ venv\Scripts\python.exe scripts\scan_devices.py --save YOUR_DEVICE_ADDRESS
 
 Or use the Onboard Apps page and press `Scan`, then `Use Selected`.
 
+## Command Examples
+
+```bat
+venv\Scripts\python.exe scripts\start_module.py paint
+venv\Scripts\python.exe scripts\start_module.py testmode
+venv\Scripts\python.exe scripts\send_canvas.py br --start
+venv\Scripts\python.exe scripts\send_pixel.py 11 11 --colour red --start
+```
+
+## Android App
+
+Open this folder in Android Studio:
+
+```text
+LightyCoderDoodad/android
+```
+
+Or run:
+
+```bat
+open_android_studio.bat
+```
+
+See [Android app](android/README.md).
+
 ## Documentation
 
 - [Setup](docs/SETUP.md)
@@ -56,17 +126,20 @@ Or use the Onboard Apps page and press `Scan`, then `Use Selected`.
 - [Scripts](docs/SCRIPTS.md)
 - [Android app](android/README.md)
 
-## Command examples
+## Current Status
 
-```bat
-venv\Scripts\python.exe scripts\start_module.py paint
-venv\Scripts\python.exe scripts\start_module.py testmode
-venv\Scripts\python.exe scripts\send_canvas.py br --start
-venv\Scripts\python.exe scripts\send_pixel.py 11 11 --colour red --start
-```
+Working:
 
-## Notes
+- Start `paint`.
+- Start `testmode` demo.
+- Send compact canvas frames.
+- Generate one-pixel and multi-pixel canvases.
+- Load/downsample images in the web UI.
+- Run generated animations in the web UI.
 
-The stock firmware appears to run onboard modules and uploaded app bundles through a small embedded VM. The most useful built-in module for remote control is `paint`: once it is running, compact canvas payloads can update the LED matrix.
+Still open:
 
-Some older experiments attempted app uploads. Those findings are kept only as background notes because direct upload is not needed for the current working path.
+- Complete stock app bundle format.
+- Running custom uploaded apps cleanly through the stock VM.
+- Full button/accelerometer forwarding without custom firmware.
+- Polishing/build-testing the Android app on hardware.
