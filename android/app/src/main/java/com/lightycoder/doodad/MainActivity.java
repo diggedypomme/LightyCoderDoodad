@@ -18,6 +18,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,7 +27,6 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.GridLayout;
@@ -42,6 +42,15 @@ import java.util.Arrays;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
+    private static final int W = 12;
+    private static final int H = 12;
+    private static final int CELL_COUNT = W * H;
+    private static final int BG = Color.rgb(245, 247, 250);
+    private static final int PANEL = Color.WHITE;
+    private static final int TEXT = Color.rgb(24, 30, 38);
+    private static final int MUTED = Color.rgb(91, 101, 113);
+    private static final int BLUE = Color.rgb(47, 125, 225);
+
     private final Handler main = new Handler(Looper.getMainLooper());
     private BluetoothAdapter adapter;
     private BluetoothLeScanner scanner;
@@ -49,21 +58,25 @@ public class MainActivity extends Activity {
     private BluetoothGattCharacteristic commandChar;
     private TextView status;
     private LinearLayout content;
-    private final int[] pixels = new int[144];
-    private final boolean[] selected = new boolean[144];
-    private final Button[] cells = new Button[144];
+    private GridLayout padGrid;
+    private ImageView imagePreview;
+    private final int[] pixels = new int[CELL_COUNT];
+    private final boolean[] selected = new boolean[CELL_COUNT];
+    private final Button[] cells = new Button[CELL_COUNT];
     private int selectedColor = Color.RED;
-    private int brightness = 255;
+    private int brightness = 180;
     private boolean multiSelect = true;
     private boolean paintStarted = false;
+    private int animationMode = 0;
     private int animationStep = 0;
     private boolean animationRunning = false;
+
     private final Runnable animationTick = new Runnable() {
         @Override public void run() {
             if (!animationRunning) return;
-            renderAnimationFrame(animationStep++);
+            renderAnimationFrame(animationMode, animationStep++);
             sendPixels(false);
-            main.postDelayed(this, 300);
+            main.postDelayed(this, 260);
         }
     };
 
@@ -78,121 +91,194 @@ public class MainActivity extends Activity {
         showPadPage();
     }
 
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
     private void buildShell() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(18, 18, 18, 18);
+        root.setPadding(dp(14), dp(14), dp(14), dp(14));
+        root.setBackgroundColor(BG);
+
+        TextView title = new TextView(this);
+        title.setText("LightyCoderDoodad");
+        title.setTextColor(TEXT);
+        title.setTextSize(24);
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        title.setTypeface(null, 1);
+        root.addView(title);
 
         status = new TextView(this);
         status.setText("Disconnected");
-        status.setTextSize(16);
+        status.setTextColor(MUTED);
+        status.setTextSize(14);
         root.addView(status);
 
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(0, 12, 0, 12);
-        addButton(top, "Connect", v -> scanAndConnect(), 1);
-        addButton(top, "Start Paint", v -> startPaint(), 1);
-        addButton(top, "Disconnect", v -> disconnect(), 1);
+        LinearLayout top = row();
+        addButton(top, "Connect", v -> scanAndConnect(), 1, BLUE);
+        addButton(top, "Start Paint", v -> startPaint(), 1, Color.rgb(42, 157, 93));
+        addButton(top, "Disconnect", v -> disconnect(), 1, Color.rgb(210, 74, 74));
         root.addView(top);
 
-        LinearLayout nav = new LinearLayout(this);
-        nav.setOrientation(LinearLayout.HORIZONTAL);
-        addButton(nav, "Pad", v -> showPadPage(), 1);
-        addButton(nav, "Images", v -> showImagesPage(), 1);
-        addButton(nav, "Animations", v -> showAnimationsPage(), 1);
+        LinearLayout nav = row();
+        addButton(nav, "Pad", v -> showPadPage(), 1, Color.rgb(230, 235, 241));
+        addButton(nav, "Images", v -> showImagesPage(), 1, Color.rgb(230, 235, 241));
+        addButton(nav, "Animations", v -> showAnimationsPage(), 1, Color.rgb(230, 235, 241));
         root.addView(nav);
 
         ScrollView scroll = new ScrollView(this);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, 12, 0, 0);
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
     }
 
-    private Button addButton(LinearLayout parent, String label, View.OnClickListener listener, int weight) {
+    private LinearLayout row() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(8), 0, dp(8));
+        return row;
+    }
+
+    private LinearLayout card() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(14), dp(14), dp(14));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(PANEL);
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(dp(1), Color.rgb(218, 225, 232));
+        card.setBackground(bg);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, dp(12), 0, dp(12));
+        card.setLayoutParams(params);
+        return card;
+    }
+
+    private Button addButton(LinearLayout parent, String label, View.OnClickListener listener, int weight, int color) {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
+        button.setTextColor(readableText(color));
+        button.setTextSize(13);
         button.setOnClickListener(listener);
-        parent.addView(button, new LinearLayout.LayoutParams(0, -2, weight));
+        button.setBackground(rounded(color, dp(1), darker(color), dp(9)));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), weight);
+        params.setMargins(dp(3), 0, dp(3), 0);
+        parent.addView(button, params);
         return button;
+    }
+
+    private GradientDrawable rounded(int fill, int strokeWidth, int stroke, int radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(fill);
+        drawable.setCornerRadius(radius);
+        drawable.setStroke(strokeWidth, stroke);
+        return drawable;
+    }
+
+    private int darker(int color) {
+        return Color.rgb(Color.red(color) * 82 / 100, Color.green(color) * 82 / 100, Color.blue(color) * 82 / 100);
+    }
+
+    private int readableText(int color) {
+        return Color.red(color) + Color.green(color) + Color.blue(color) < 430 ? Color.WHITE : TEXT;
     }
 
     private void showPadPage() {
         animationRunning = false;
         content.removeAllViews();
-        content.addView(label("12x12 Pad"));
-        addColorControls(content);
-
+        LinearLayout controls = card();
+        controls.addView(label("Paint Pad"));
+        controls.addView(text("Tap a square to paint it with the current colour. Selected cells have a blue outline."));
+        addColorControls(controls);
         CheckBox multi = new CheckBox(this);
-        multi.setText("Select multiple cells");
+        multi.setText("Keep multiple cells selected");
+        multi.setTextColor(TEXT);
         multi.setChecked(multiSelect);
         multi.setOnCheckedChangeListener((buttonView, isChecked) -> multiSelect = isChecked);
-        content.addView(multi);
+        controls.addView(multi);
+        content.addView(controls);
 
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(12);
-        for (int i = 0; i < 144; i++) {
+        LinearLayout gridCard = card();
+        padGrid = new GridLayout(this);
+        padGrid.setColumnCount(W);
+        padGrid.setUseDefaultMargins(false);
+        for (int i = 0; i < CELL_COUNT; i++) {
             final int index = i;
             Button cell = new Button(this);
-            cell.setText((i % 12) + "," + (i / 12));
-            cell.setTextSize(8);
+            cell.setText("");
             cell.setPadding(0, 0, 0, 0);
-            cell.setOnClickListener(v -> toggleCell(index));
+            cell.setMinWidth(0);
+            cell.setMinimumWidth(0);
+            cell.setMinHeight(0);
+            cell.setMinimumHeight(0);
+            cell.setOnClickListener(v -> paintCell(index));
+            cell.setOnLongClickListener(v -> { pixels[index] = Color.BLACK; selected[index] = false; renderGrid(); return true; });
             cells[i] = cell;
-            grid.addView(cell, new ViewGroupLayout(64, 64));
+            padGrid.addView(cell);
         }
-        content.addView(grid);
+        gridCard.addView(padGrid, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(gridCard);
 
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        addButton(row, "Apply Colour", v -> applyColourToSelection(), 1);
-        addButton(row, "Clear Selected", v -> clearSelection(), 1);
-        addButton(row, "Clear All", v -> clearAllPixels(), 1);
-        content.addView(row);
-
-        LinearLayout sendRow = new LinearLayout(this);
-        sendRow.setOrientation(LinearLayout.HORIZONTAL);
-        addButton(sendRow, "Send", v -> sendPixels(true), 1);
-        addButton(sendRow, "Send + Start Paint", v -> { startPaint(); main.postDelayed(() -> sendPixels(false), 1300); }, 1);
-        content.addView(sendRow);
+        LinearLayout actions = card();
+        LinearLayout row = row();
+        addButton(row, "Send", v -> sendPixels(true), 1, BLUE);
+        addButton(row, "Clear Selected", v -> clearSelection(), 1, Color.rgb(230, 235, 241));
+        addButton(row, "Clear All", v -> clearAllPixels(), 1, Color.rgb(230, 235, 241));
+        actions.addView(row);
+        content.addView(actions);
+        resizePadCells();
         renderGrid();
     }
 
     private void showImagesPage() {
         animationRunning = false;
         content.removeAllViews();
-        content.addView(label("Images"));
-        content.addView(text("Load an image, centre-crop it to a square, downsample to 12x12, then send it to paint mode."));
-        addButton(content, "Load Image", v -> pickImage(), 1);
-        addColorControls(content);
-        addButton(content, "Send Current Image/Grid", v -> sendPixels(true), 1);
-        ImageView preview = new ImageView(this);
-        preview.setImageBitmap(bitmapFromPixels());
-        preview.setAdjustViewBounds(true);
-        content.addView(preview, new LinearLayout.LayoutParams(-1, 480));
+        LinearLayout panel = card();
+        panel.addView(label("Images"));
+        panel.addView(text("Choose an image from your phone. It is centre-cropped, downsampled to 12x12, and sent through paint mode."));
+        LinearLayout row = row();
+        addButton(row, "Choose Image", v -> pickImage(), 1, BLUE);
+        addButton(row, "Send Image", v -> sendPixels(true), 1, Color.rgb(42, 157, 93));
+        panel.addView(row);
+        imagePreview = new ImageView(this);
+        imagePreview.setImageBitmap(bitmapFromPixels());
+        imagePreview.setBackgroundColor(Color.rgb(230, 235, 241));
+        imagePreview.setAdjustViewBounds(true);
+        imagePreview.setPadding(dp(8), dp(8), dp(8), dp(8));
+        panel.addView(imagePreview, new LinearLayout.LayoutParams(-1, dp(380)));
+        content.addView(panel);
     }
 
     private void showAnimationsPage() {
         content.removeAllViews();
-        content.addView(label("Animations"));
-        content.addView(text("These are generated on the phone and streamed as compact canvas frames."));
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        addButton(row, "Play Wipe", v -> startAnimation(0), 1);
-        addButton(row, "Play Pulse", v -> startAnimation(1), 1);
-        addButton(row, "Play Rainbow", v -> startAnimation(2), 1);
-        content.addView(row);
-        addButton(content, "Stop", v -> animationRunning = false, 1);
+        LinearLayout panel = card();
+        panel.addView(label("Animations"));
+        panel.addView(text("Generated on the phone and streamed as compact canvas frames."));
+        addColorControls(panel);
+        LinearLayout row1 = row();
+        addButton(row1, "Wipe", v -> startAnimation(0), 1, BLUE);
+        addButton(row1, "Pulse", v -> startAnimation(1), 1, BLUE);
+        addButton(row1, "Rainbow", v -> startAnimation(2), 1, BLUE);
+        panel.addView(row1);
+        LinearLayout row2 = row();
+        addButton(row2, "Heart", v -> startAnimation(3), 1, Color.rgb(226, 66, 112));
+        addButton(row2, "Sparkle", v -> startAnimation(4), 1, BLUE);
+        addButton(row2, "Scanner", v -> startAnimation(5), 1, BLUE);
+        panel.addView(row2);
+        addButton(panel, "Stop Animation", v -> animationRunning = false, 1, Color.rgb(230, 235, 241));
+        content.addView(panel);
     }
 
     private void addColorControls(LinearLayout parent) {
-        LinearLayout colours = new LinearLayout(this);
-        colours.setOrientation(LinearLayout.HORIZONTAL);
+        TextView brush = text("Brush colour");
+        brush.setTextColor(MUTED);
+        parent.addView(brush);
+        LinearLayout colours = row();
         addColourButton(colours, "Red", Color.RED);
         addColourButton(colours, "Green", Color.GREEN);
         addColourButton(colours, "Blue", Color.BLUE);
@@ -216,34 +302,48 @@ public class MainActivity extends Activity {
     }
 
     private void addColourButton(LinearLayout parent, String label, int color) {
-        Button button = addButton(parent, label, v -> selectedColor = color, 1);
-        button.setBackgroundColor(color);
-        button.setTextColor((Color.red(color) + Color.green(color) + Color.blue(color)) < 380 ? Color.WHITE : Color.BLACK);
+        addButton(parent, label, v -> selectedColor = color, 1, color);
     }
 
     private TextView label(String text) {
         TextView view = text(text);
+        view.setTextColor(TEXT);
         view.setTextSize(22);
-        view.setPadding(0, 16, 0, 8);
+        view.setTypeface(null, 1);
+        view.setPadding(0, 0, 0, dp(8));
         return view;
     }
 
     private TextView text(String text) {
         TextView view = new TextView(this);
         view.setText(text);
-        view.setPadding(0, 6, 0, 6);
+        view.setTextColor(MUTED);
+        view.setTextSize(14);
+        view.setPadding(0, dp(4), 0, dp(6));
         return view;
     }
 
-    private void toggleCell(int index) {
-        if (!multiSelect) Arrays.fill(selected, false);
-        selected[index] = !selected[index];
-        renderGrid();
+    private void resizePadCells() {
+        if (padGrid == null) return;
+        padGrid.post(() -> {
+            int total = padGrid.getWidth();
+            if (total <= 0) return;
+            int gap = dp(3);
+            int size = (total - gap * (W - 1)) / W;
+            for (int i = 0; i < CELL_COUNT; i++) {
+                GridLayout.LayoutParams params = new GridLayout.LayoutParams(GridLayout.spec(i / W), GridLayout.spec(i % W));
+                params.width = size;
+                params.height = size;
+                params.setMargins(i % W == 0 ? 0 : gap, i < W ? 0 : gap, 0, 0);
+                cells[i].setLayoutParams(params);
+            }
+        });
     }
 
-    private void applyColourToSelection() {
-        int color = scaledColor(selectedColor);
-        for (int i = 0; i < 144; i++) if (selected[i]) pixels[i] = color;
+    private void paintCell(int index) {
+        if (!multiSelect) Arrays.fill(selected, false);
+        selected[index] = !selected[index];
+        pixels[index] = scaledColor(selectedColor);
         renderGrid();
     }
 
@@ -265,13 +365,11 @@ public class MainActivity extends Activity {
     private void renderGrid() {
         for (int i = 0; i < cells.length; i++) {
             if (cells[i] == null) continue;
-            cells[i].setBackgroundColor(selected[i] ? lighten(pixels[i]) : pixels[i]);
-            cells[i].setTextColor((Color.red(pixels[i]) + Color.green(pixels[i]) + Color.blue(pixels[i])) < 380 ? Color.WHITE : Color.BLACK);
+            int fill = pixels[i];
+            int stroke = selected[i] ? BLUE : Color.rgb(188, 197, 207);
+            int strokeWidth = selected[i] ? dp(3) : dp(1);
+            cells[i].setBackground(rounded(fill, strokeWidth, stroke, dp(5)));
         }
-    }
-
-    private int lighten(int color) {
-        return Color.rgb(Math.min(255, Color.red(color) + 60), Math.min(255, Color.green(color) + 60), Math.min(255, Color.blue(color) + 60));
     }
 
     private void requestBlePermissions() {
@@ -402,52 +500,72 @@ public class MainActivity extends Activity {
         int left = (bitmap.getWidth() - size) / 2;
         int top = (bitmap.getHeight() - size) / 2;
         Bitmap crop = Bitmap.createBitmap(bitmap, left, top, size, size);
-        Bitmap small = Bitmap.createScaledBitmap(crop, 12, 12, true);
-        for (int y = 0; y < 12; y++) {
-            for (int x = 0; x < 12; x++) {
+        Bitmap small = Bitmap.createScaledBitmap(crop, W, H, true);
+        for (int y = 0; y < H; y++) {
+            for (int x = 0; x < W; x++) {
                 int c = small.getPixel(x, y);
-                pixels[y * 12 + x] = Color.rgb(Color.red(c) * brightness / 255, Color.green(c) * brightness / 255, Color.blue(c) * brightness / 255);
+                pixels[y * W + x] = Color.rgb(Color.red(c), Color.green(c), Color.blue(c));
             }
         }
+        Arrays.fill(selected, false);
     }
 
     private Bitmap bitmapFromPixels() {
-        Bitmap bitmap = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
-        for (int y = 0; y < 12; y++) for (int x = 0; x < 12; x++) bitmap.setPixel(x, y, pixels[y * 12 + x]);
-        return Bitmap.createScaledBitmap(bitmap, 360, 360, false);
+        Bitmap bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) bitmap.setPixel(x, y, pixels[y * W + x]);
+        return Bitmap.createScaledBitmap(bitmap, dp(360), dp(360), false);
     }
 
     private void startAnimation(int mode) {
         animationRunning = false;
-        animationStep = mode * 1000;
+        animationMode = mode;
+        animationStep = 0;
         animationRunning = true;
         animationTick.run();
     }
 
-    private void renderAnimationFrame(int step) {
-        int mode = step / 1000;
-        int t = step % 1000;
+    private void renderAnimationFrame(int mode, int t) {
         Arrays.fill(pixels, Color.BLACK);
         if (mode == 0) {
-            for (int i = 0; i <= t % 144; i++) pixels[i] = scaledColor(selectedColor);
+            for (int i = 0; i <= t % CELL_COUNT; i++) pixels[i] = scaledColor(selectedColor);
         } else if (mode == 1) {
-            int v = 40 + (int)(Math.abs(Math.sin(t * 0.25)) * 215);
-            for (int i = 0; i < 144; i++) pixels[i] = Color.rgb(v, 0, 255 - v);
-        } else {
-            for (int y = 0; y < 12; y++) {
-                for (int x = 0; x < 12; x++) {
-                    float hue = ((x * 30 + y * 10 + t * 8) % 360);
-                    pixels[y * 12 + x] = Color.HSVToColor(new float[]{hue, 1.0f, brightness / 255f});
-                }
+            int v = 30 + (int)(Math.abs(Math.sin(t * 0.25)) * 225);
+            for (int i = 0; i < CELL_COUNT; i++) pixels[i] = Color.rgb(v, 0, 255 - v);
+        } else if (mode == 2) {
+            for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+                float hue = ((x * 30 + y * 10 + t * 8) % 360);
+                pixels[y * W + x] = Color.HSVToColor(new float[]{hue, 1.0f, brightness / 255f});
             }
+        } else if (mode == 3) {
+            renderHeart(t);
+        } else if (mode == 4) {
+            for (int i = 0; i < 18; i++) {
+                int index = Math.abs((t * 17 + i * 41) % CELL_COUNT);
+                pixels[index] = Color.WHITE;
+            }
+        } else if (mode == 5) {
+            int x = t % (W * 2 - 2);
+            if (x >= W) x = W * 2 - 2 - x;
+            for (int y = 0; y < H; y++) pixels[y * W + x] = scaledColor(selectedColor);
         }
+    }
+
+    private void renderHeart(int t) {
+        int pulse = 105 + (int)(Math.abs(Math.sin(t * 0.35)) * 150);
+        int color = Color.rgb(pulse, 0, Math.max(25, pulse / 5));
+        int[][] coords = {
+                {3,2},{4,2},{7,2},{8,2},
+                {2,3},{3,3},{4,3},{5,3},{6,3},{7,3},{8,3},{9,3},
+                {2,4},{3,4},{4,4},{5,4},{6,4},{7,4},{8,4},{9,4},
+                {3,5},{4,5},{5,5},{6,5},{7,5},{8,5},
+                {4,6},{5,6},{6,6},{7,6},
+                {5,7},{6,7},
+                {5,8},{6,8}
+        };
+        for (int[] xy : coords) pixels[xy[1] * W + xy[0]] = color;
     }
 
     private void toast(String message) {
         Toast.makeText(this, message == null ? "Error" : message, Toast.LENGTH_SHORT).show();
-    }
-
-    private static class ViewGroupLayout extends ViewGroup.LayoutParams {
-        ViewGroupLayout(int w, int h) { super(w, h); }
     }
 }
