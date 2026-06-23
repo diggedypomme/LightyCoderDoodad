@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Arcade Coder Paint</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Arcade Coder Paint</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="startPaint">Start Paint</button>
+          <button id="disconnect">Disconnect</button>
+          <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+          <a class="button-link" href="/hexlab.html">Hex Lab</a>
+          <a class="button-link" href="/observe.html">Observe</a>
+        </div>
+      </header>
+
+      <section class="layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Grid</h2>
+              <select id="mode">
+                <option value="known">Known payloads</option>
+                <option value="observe">Mark observed pixels</option>
+              </select>
+            </div>
+            <div id="grid" class="grid"></div>
+            <p class="hint">Known cells send captured payloads. Unknown cells are for observation marking.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Known Canvases</h2>
+            <div id="canvases" class="buttons"></div>
+            <textarea id="hexInput" spellcheck="false" placeholder="Paste compact canvas hex here"></textarea>
+            <button id="sendHex">Send Hex</button>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Discovery</h2>
+            <label>Base
+              <select id="mutBase"></select>
+            </label>
+            <label>Offset
+              <input id="mutOffset" type="number" min="0" value="3">
+            </label>
+            <label>Value
+              <input id="mutValue" type="text" value="0x17">
+            </label>
+            <button id="sendMutation">Send Mutation</button>
+            <p id="lastMutation" class="mono"></p>
+            <label>Observed colour
+              <select id="observedColor">
+                <option>red</option>
+                <option>green</option>
+                <option>blue</option>
+                <option>white</option>
+                <option>yellow</option>
+                <option>cyan</option>
+                <option>magenta</option>
+                <option>mixed</option>
+                <option>off</option>
+              </select>
+            </label>
+            <p class="hint">After sending a mutation, switch mode to "Mark observed pixels" and click cells that lit.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Log</h2>
+            <div id="log" class="log-table-wrap"></div>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

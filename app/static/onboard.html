@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Onboard Arcade Coder Apps</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .onboard-layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; align-items: start; }
+      .app-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      .app-card { border: 1px solid #d7dde3; border-radius: 8px; padding: 12px; background: #f8fafc; }
+      .app-card h3 { margin: 0 0 8px; font-size: 16px; }
+      .app-card p { color: #4c5660; font-size: 13px; margin-bottom: 10px; }
+      .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: end; margin-bottom: 14px; }
+      .device-row label { margin: 0; }
+      .docs-embed { margin-top: 16px; border-top: 1px solid #d7dde3; padding-top: 14px; }
+      .docs-embed h1 { display: none; }
+      .docs-embed h2, .docs-embed h3 { margin-top: 16px; margin-bottom: 8px; }
+      .docs-embed p, .docs-embed li { line-height: 1.45; margin: 7px 0; }
+      .docs-embed pre { max-height: none; }
+      @media (max-width: 700px) { .device-row { grid-template-columns: 1fr; } }
+      @media (max-width: 900px) { .onboard-layout { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Onboard Apps</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="disconnect">Disconnect</button>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+          <a class="button-link" href="/">Main</a>
+        </div>
+      </header>
+
+      <section class="onboard-layout">
+        <div class="panel">
+          <h2>Device</h2>
+          <div class="device-row">
+            <label>
+              BLE device
+              <select id="deviceSelect"></select>
+            </label>
+            <button id="scanDevices">Scan</button>
+            <button id="useDevice">Use Selected</button>
+          </div>
+          <p class="hint">For a shared checkout, scan first and select your own Arcade Coder. The old hardcoded address is only a fallback.</p>
+          <div id="docsEmbed" class="docs-embed">Loading docs...</div>
+        </div>
+
+        <div class="panel">
+          <h2>Start Built-In Firmware Modules</h2>
+          <div class="app-list">
+            <div class="app-card">
+              <h3>Paint</h3>
+              <p>Starts the stock paint module. Required before sending compact canvas frames.</p>
+              <button data-module="paint">Start Paint</button>
+            </div>
+            <div class="app-card">
+              <h3>Demo / Testmode</h3>
+              <p>Starts the firmware colour-cycle test module. This is the reliable onboard demo we confirmed.</p>
+              <button data-module="testmode">Start Demo</button>
+            </div>
+            <div class="app-card">
+              <h3>Initial Interaction</h3>
+              <p>Starts the default first-run style interaction module. Useful for comparison only.</p>
+              <button data-module="initial-interaction">Start Initial Interaction</button>
+            </div>
+            <div class="app-card">
+              <h3>Matrix</h3>
+              <p>Known to behave like a support/library module and may error if started directly.</p>
+              <button data-module="matrix">Start Matrix</button>
+            </div>
+          </div>
+          <p class="hint">Paint and testmode are the useful buttons. Matrix is exposed for completeness but is expected to complain.</p>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/onboard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Payload Observe</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .observe-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(480px, 0.55fr); gap: 16px; }
+      .current { background: #f4f6f8; border-radius: 6px; padding: 10px; }
+      .candidate-list { min-height: 260px; }
+      .observation-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 300px; }
+      .observation-controls label { margin: 0; font-size: 12px; color: #4c5660; }
+      .cell.marked { box-shadow: inset 0 0 0 3px #111; color: #111; font-weight: 700; }
+      #log, #saved, #current { white-space: pre; overflow-x: auto; }
+      @media (max-width: 900px) { .observe-layout { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Payload Observe</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="startPaint">Start Fresh Paint</button>
+          <button id="sendCurrent">Send Current</button>
+          <button id="next">Save + Next</button>
+                  <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+                  <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+                  <a class="button-link" href="/hexlab.html">Hex Lab</a>
+                  <a class="button-link" href="/observe.html">Observe</a>
+                  <a class="button-link" href="/sweep.html">Sweep</a>
+        </div>
+      </header>
+
+      <section class="observe-layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>What Lit?</h2>
+              <div class="observation-controls">
+                <label>
+                  Colour
+                  <select id="observedColor">
+                    <option value="red">red</option>
+                    <option value="green">green</option>
+                    <option value="blue">blue</option>
+                    <option value="purple">purple</option>
+                    <option value="white">white</option>
+                    <option value="yellow">yellow</option>
+                    <option value="cyan">cyan</option>
+                    <option value="magenta">magenta</option>
+                    <option value="mixed">mixed</option>
+                    <option value="off">off</option>
+                  </select>
+                </label>
+                <label>
+                  Brightness
+                  <select id="observedBrightness">
+                    <option value="1">1 dim</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5" selected>5 medium</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10 bright</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div id="grid" class="grid"></div>
+            <p class="hint">Workflow: start fresh paint, send current, click the cell(s) that lit, set colour/brightness first, then Save + Next.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Current Candidate</h2>
+            <pre id="current" class="current"></pre>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Candidate Queue</h2>
+            <textarea id="candidates" class="candidate-list" spellcheck="false"></textarea>
+            <div class="toolbar">
+              <button id="loadDefaults">Load Defaults</button>
+              <button id="clearMarks">Clear Marks</button>
+            </div>
+            <p class="hint">One compact canvas hex per line. Anything after # is just a note.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Last Saved</h2>
+            <pre id="saved"></pre>
+          </div>
+
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/observe.js"></script>
+  </body>
+</html>

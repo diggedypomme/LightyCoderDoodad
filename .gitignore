@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+device_config.json
+app/observations.jsonlandroid/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab

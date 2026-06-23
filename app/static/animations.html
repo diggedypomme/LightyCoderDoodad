@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Animations</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .anim-layout { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: 16px; }
+      .anim-grid .cell { font-size: 10px; }
+      .anim-grid .cell.lit { color: #111; border-color: #111; font-weight: 700; }
+      .editor { min-height: 360px; font-family: Consolas, monospace; }
+      .preview { min-height: 180px; }
+      .small-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      @media (max-width: 900px) { .anim-layout { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Animations</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="startPaint">Start Paint</button>
+          <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+          <a class="button-link" href="/hexlab.html">Hex Lab</a>
+          <a class="button-link" href="/">Main</a>
+                  <a class="button-link" href="/images.html">Images</a>
+        </div>
+      </header>
+
+      <section class="anim-layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>12x12 Preview</h2>
+              <div class="toolbar">
+                <button id="play">Play</button>
+                <button id="stop">Stop</button>
+                <button id="step">Step</button>
+                <button id="sendFrame">Send Frame</button>
+              </div>
+            </div>
+            <div id="grid" class="grid anim-grid"></div>
+            <p class="hint">Frames are generated locally, previewed here, then sent as compressed canvases through the paint bridge.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Script</h2>
+            <div class="small-row">
+              <label>Example<select id="example"></select></label>
+              <button id="nextRandom">Next</button>
+              <label>FPS<input id="fps" type="number" min="1" max="20" value="4"></label>
+            </div>
+            <div class="small-row">
+              <label>Auto-skip (sec)<input id="skipInterval" type="number" min="1" max="60" value="5"></label>
+              <button id="startAutoSkip">Start Auto-Skip</button>
+              <label>Frame<input id="frameNo" type="number" min="0" value="0"></label>
+            </div>
+            <div class="small-row">
+              <button id="stopAll">Stop All</button>
+              <button id="freezeAutoSkip">Freeze Auto-Skip</button>
+            </div>
+            <textarea id="script" class="editor" spellcheck="false"></textarea>
+            <p class="hint">Write JavaScript using helpers: set, rect, line, clear, hsv, text, W, H. The script body runs once per frame; use i as the frame number.</p>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>API Cheatsheet</h2>
+            <pre class="preview">clear(r,g,b)
+set(x,y,r,g,b)
+rect(x,y,w,h,r,g,b)
+line(x1,y1,x2,y2,r,g,b)
+hsv(h,s,v) -> [r,g,b]
+text(pattern,x,y,r,g,b)
+W=12, H=12, frame number is i</pre>
+          </div>
+          <div class="panel">
+            <h2>Last Frame</h2>
+            <pre id="preview" class="preview"></pre>
+          </div>
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/animations.js"></script>
+  </body>
+</html>

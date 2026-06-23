@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Images</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .image-layout { display: grid; grid-template-columns: minmax(0, 1fr) 430px; gap: 16px; }
+      .image-grid .cell { font-size: 10px; }
+      .image-grid .cell.lit { color: #111; border-color: #111; font-weight: 700; }
+      .image-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 0.65fr); gap: 16px; align-items: start; }
+      .source-canvas-wrap { background: #f4f6f8; border: 1px solid #d7dde3; border-radius: 8px; padding: 10px; overflow: auto; }
+      .source-canvas-wrap.drag-over { border-color: #2f7de1; background: #eaf3ff; box-shadow: inset 0 0 0 2px #2f7de1; }
+      #sourceCanvas { display: block; max-width: 100%; background: #fff; image-rendering: pixelated; }
+      .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .control-grid label { margin: 0; }
+      .preset-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: end; }
+      .preview { min-height: 160px; }
+      @media (max-width: 1000px) { .image-layout, .image-workspace { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Images</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect" class="primary-action">Connect</button>
+          <button id="startPaint" class="secondary-action">Start Paint</button>
+          <button id="disconnect" class="danger-action">Disconnect</button>
+          <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+          <a class="button-link" href="/">Main</a>
+        </div>
+      </header>
+
+      <section class="image-layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Image Crop</h2>
+              <div class="toolbar">
+                <button id="fitContain">Fit</button>
+                <button id="fitCover">Fill</button>
+                <button id="centerCrop">Center</button>
+                <button id="sendImage">Send Image</button>
+              </div>
+            </div>
+            <div class="image-workspace">
+              <div class="source-canvas-wrap">
+                <canvas id="sourceCanvas" width="360" height="360"></canvas>
+                <p class="hint">Drop an image here, or use the file picker.</p>
+              </div>
+              <div>
+                <label>
+                  Load image
+                  <input id="imageFile" type="file" accept="image/*">
+                </label>
+                <div class="control-grid">
+                  <label>Zoom<input id="zoom" type="range" min="0.1" max="8" step="0.01" value="1"></label>
+                  <label>Pixel size<input id="pixelSize" type="range" min="10" max="34" step="1" value="24"></label>
+                  <label>X offset<input id="offsetX" type="range" min="-360" max="360" step="1" value="0"></label>
+                  <label>Y offset<input id="offsetY" type="range" min="-360" max="360" step="1" value="0"></label>
+                  <label>Brightness<input id="brightness" type="range" min="0" max="2" step="0.01" value="1"></label>
+                  <label>Contrast<input id="contrast" type="range" min="0" max="2" step="0.01" value="1"></label>
+                  <label>Saturation<input id="saturation" type="range" min="0" max="2" step="0.01" value="1"></label>
+                  <label>Dither<select id="dither"><option value="none">none</option><option value="threshold">threshold-ish</option></select></label>
+                </div>
+                <p class="hint">Drag on the source image to pan. The square crop is downsampled to 12x12.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>12x12 Preview</h2>
+              <button id="clearImage">Clear</button>
+            </div>
+            <div id="grid" class="grid image-grid"></div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Layouts</h2>
+            <div class="preset-row">
+              <label>Name<input id="layoutName" placeholder="e.g. avatar crop"></label>
+              <button id="saveLayout">Save</button>
+              <button id="deleteLayout">Delete</button>
+            </div>
+            <label>Saved layouts<select id="layoutSelect"></select></label>
+            <div class="toolbar">
+              <button id="loadLayout">Load</button>
+              <button id="exportLayouts">Export JSON</button>
+              <button id="importLayouts">Import JSON</button>
+            </div>
+            <textarea id="layoutJson" spellcheck="false" placeholder="Exported/imported layout JSON"></textarea>
+            <p class="hint">Layouts are saved in browser localStorage. They include crop settings and the source image as a data URL.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Last Canvas</h2>
+            <pre id="preview" class="preview"></pre>
+          </div>
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/images.js"></script>
+  </body>
+</html>
+

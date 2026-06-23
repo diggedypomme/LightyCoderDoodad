@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Experiments</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .experiments-layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; }
+      .experiment-grid .cell { font-size: 10px; }
+      .experiment-grid .cell.lit { color: #111; border-color: #111; font-weight: 700; }
+      .meter-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) 64px; gap: 10px; align-items: center; margin: 8px 0; }
+      .meter { height: 18px; background: #edf1f5; border: 1px solid #c6ced6; border-radius: 5px; overflow: hidden; }
+      .meter span { display: block; height: 100%; width: 0%; background: #7cc8ff; }
+      .meter.ram span { background: #d083ff; }
+      .meter.net span { background: #54d6a3; }
+      .meter.vram span { background: #ffb65c; }
+      .meter.gpu span { background: #ff6b6b; }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      .wordle-counts { display: grid; grid-template-columns: repeat(6, minmax(48px, 1fr)); gap: 8px; }
+      .wordle-counts label { margin: 0; font-size: 12px; }
+      .wordle-counts input { text-align: center; }
+      .audio-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .preview { min-height: 190px; }
+      @media (max-width: 900px) { .experiments-layout { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Experiments</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="startPaint">Start Paint</button>
+          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+          <a class="button-link" href="/hexlab.html">Hex Lab</a>
+          <a class="button-link" href="/">Main</a>
+                  <a class="button-link" href="/observe.html">Observe</a>
+                  <a class="button-link" href="/sweep.html">Sweep</a>
+                  <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+                  <a class="button-link" href="/onboard.html">Onboard Apps</a>
+        </div>
+      </header>
+
+      <section class="experiments-layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>12x12 Output Preview</h2>
+              <button id="sendCurrent">Send Current Preview</button>
+            </div>
+            <div id="grid" class="grid experiment-grid"></div>
+            <p class="hint">Aurora fills more LEDs as the alert level rises. System mode uses CPU rows 0-1, blank row 2, and RAM rows 3-4.</p>
+          </div>
+
+          <div class="panel">
+            <h2>AuroraWatch</h2>
+            <p class="hint">Uses AuroraWatch UK API v0.2 current status XML. Mapping: green 12 LEDs, yellow 48, amber 96, red 144.</p>
+            <label>
+              Manual level
+              <select id="manualAurora">
+                <option value="green">green</option>
+                <option value="yellow">yellow</option>
+                <option value="amber">amber</option>
+                <option value="red">red</option>
+              </select>
+            </label>
+            <div class="actions">
+              <button id="fetchAurora">Fetch Aurora</button>
+              <button id="sendAurora">Send Aurora</button>
+              <button id="manualAuroraPreview">Preview Manual</button>
+              <button id="sendManualAurora">Send Manual</button>
+              <button id="autoAurora">Start Auto Aurora</button>
+            </div>
+            <pre id="auroraInfo"></pre>
+          </div>
+
+          <div class="panel">
+            <h2>Wordle Scores</h2>
+            <p class="hint">Paste the NYT guess distribution HTML or type counts. Each attempt gets one LED row scaled to 12 columns; the strongest row is green.</p>
+            <div class="wordle-counts">
+              <label>1<input id="wordle1" type="number" min="0" value="0"></label>
+              <label>2<input id="wordle2" type="number" min="0" value="0"></label>
+              <label>3<input id="wordle3" type="number" min="0" value="2"></label>
+              <label>4<input id="wordle4" type="number" min="0" value="0"></label>
+              <label>5<input id="wordle5" type="number" min="0" value="11"></label>
+              <label>6<input id="wordle6" type="number" min="0" value="9"></label>
+            </div>
+            <label>
+              Paste stats HTML
+              <textarea id="wordleHtml" spellcheck="false" placeholder="Paste NYT Wordle guess distribution HTML here"></textarea>
+            </label>
+            <p>
+              <a id="wordleBookmarkletLink" class="button-link" href="#">Wordle to Arcade Coder</a>
+            </p>
+            <label>
+              Bookmarklet code
+              <textarea id="wordleBookmarklet" readonly spellcheck="false"></textarea>
+            </label>
+            <p class="hint">Drag the "Wordle to Arcade Coder" link to your bookmarks bar, open the Wordle stats panel, then click that bookmark.</p>
+            <div class="actions">
+              <button id="parseWordle">Parse HTML</button>
+              <button id="previewWordle">Preview Wordle</button>
+              <button id="sendWordle">Send Wordle</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Audio Visualizer</h2>
+            <p class="hint">Uses Chrome screen/tab capture with audio. Pick a tab or screen and enable audio sharing. Bars are pushed live to the Coder.</p>
+            <div class="audio-controls">
+              <label>FPS<input id="audioFps" type="number" min="1" max="12" value="6"></label>
+              <label>Gain<input id="audioGain" type="number" min="0.2" max="5" step="0.1" value="1.8"></label>
+            </div>
+            <div class="actions">
+              <button id="startAudioViz">Start Audio Visualizer</button>
+              <button id="stopAudioViz">Stop Audio Visualizer</button>
+              <button id="previewAudioViz">Preview Once</button>
+            </div>
+            <pre id="audioInfo"></pre>
+          </div>
+
+          <div class="panel">
+            <h2>CPU / RAM / Network</h2>
+            <div class="meter-row">
+              <strong>CPU</strong>
+              <div class="meter"><span id="cpuBar"></span></div>
+              <span id="cpuText">--</span>
+            </div>
+            <div class="meter-row">
+              <strong>RAM</strong>
+              <div class="meter ram"><span id="ramBar"></span></div>
+              <span id="ramText">--</span>
+            </div>
+            <div class="meter-row">
+              <strong>NET</strong>
+              <div class="meter net"><span id="netBar"></span></div>
+              <span id="netText">--</span>
+            </div>
+            <div class="meter-row">
+              <strong>VRAM</strong>
+              <div class="meter vram"><span id="vramBar"></span></div>
+              <span id="vramText">--</span>
+            </div>
+            <div class="meter-row">
+              <strong>GPU</strong>
+              <div class="meter gpu"><span id="gpuBar"></span></div>
+              <span id="gpuText">--</span>
+            </div>
+            <p class="hint">Network uses total RX+TX throughput as a percentage of 500 Mbps. VRAM and GPU each use one LED row, with a blank row before each.</p>
+            <div class="actions">
+              <button id="fetchSystem">Fetch System</button>
+              <button id="sendSystem">Send System</button>
+              <button id="autoSystem">Start Auto System</button>
+            </div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Last Canvas</h2>
+            <pre id="preview" class="preview"></pre>
+          </div>
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/experiments.js"></script>
+  </body>
+</html>

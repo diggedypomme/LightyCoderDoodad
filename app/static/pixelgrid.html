@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Pixel Grid</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .pixel-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; }
+      .pixel-grid .cell { font-size: 11px; }
+      .pixel-grid .cell.set { color: #111; font-weight: 700; border-color: #111; }
+      .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .swatch { min-height: 36px; }
+      .swatch.active { outline: 3px solid #111; }
+      .preview { min-height: 140px; }
+      .mode-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+      .mode-row label { display: flex; gap: 6px; margin: 0; align-items: center; }
+      .mode-row input { width: auto; }
+      @media (max-width: 900px) { .pixel-layout { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Pixel Grid</h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="startPaint">Start Paint</button>
+          <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+          <a class="button-link" href="/">Main</a>
+          <a class="button-link" href="/hexlab.html">Hex Lab</a>
+        </div>
+      </header>
+
+      <section class="pixel-layout">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Calculated LED Commands</h2>
+            <div class="toolbar">
+              <button id="sendCanvas">Send Selected</button>
+              <button id="clearCanvas">Clear Selection</button>
+              <button id="sendBlack">Send All Off</button>
+            </div>
+          </div>
+          <div class="mode-row">
+            <label><input type="radio" name="mode" value="single" checked> Send each click</label>
+            <label><input type="radio" name="mode" value="build"> Build canvas</label>
+          </div>
+          <div id="grid" class="grid pixel-grid"></div>
+          <p class="hint">Send each click makes a one-LED canvas immediately. Build canvas lets you click multiple cells, then Send Selected sends them all in one compressed canvas.</p>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Colour</h2>
+            <div id="swatches" class="swatches"></div>
+            <label>
+              R
+              <input id="r" type="number" min="0" max="255" value="5">
+            </label>
+            <label>
+              G
+              <input id="g" type="number" min="0" max="255" value="20">
+            </label>
+            <label>
+              B
+              <input id="b" type="number" min="0" max="255" value="220">
+            </label>
+          </div>
+
+          <div class="panel">
+            <h2>Last Command</h2>
+            <pre id="preview" class="preview"></pre>
+          </div>
+
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/pixelgrid.js"></script>
+  </body>
+</html>
