@@ -19,18 +19,19 @@
     <main>
       <header>
         <div>
-          <h1>Paint Animations</h1>
+          <h1>Paint Animations <span class="project-name">LightyCoderDoodad</span></h1>
           <p id="status">Loading...</p>
         </div>
         <div class="toolbar">
+          <button id="darkModeToggle" title="Toggle dark mode">◐</button>
           <button id="connect">Connect</button>
           <button id="startPaint">Start Paint</button>
-          <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/">Pixel Grid</a>
           <a class="button-link" href="/experiments.html">Experiments</a>
-          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
-          <a class="button-link" href="/hexlab.html">Hex Lab</a>
-          <a class="button-link" href="/">Main</a>
-                  <a class="button-link" href="/images.html">Images</a>
+          <span class="button-link current-page">Animations</span>
+          <a class="button-link" href="/images.html">Images</a>
+          <a class="button-link" href="/onboard.html">Onboard</a>
+          <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
         </div>
       </header>
 
@@ -52,19 +53,19 @@
 
           <div class="panel">
             <h2>Script</h2>
-            <div class="small-row">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px;">
               <label>Example<select id="example"></select></label>
-              <button id="nextRandom">Next</button>
-              <label>FPS<input id="fps" type="number" min="1" max="20" value="4"></label>
+              <button id="nextRandom">Next Example</button>
             </div>
-            <div class="small-row">
-              <label>Auto-skip (sec)<input id="skipInterval" type="number" min="1" max="60" value="5"></label>
-              <button id="startAutoSkip">Start Auto-Skip</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+              <label>FPS<input id="fps" type="number" min="1" max="20" value="4"></label>
               <label>Frame<input id="frameNo" type="number" min="0" value="0"></label>
             </div>
-            <div class="small-row">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; margin-bottom: 10px;">
+              <label>Auto-skip interval (sec)<input id="skipInterval" type="number" min="1" max="60" value="5"></label>
+              <button id="startAutoSkip">Start Auto</button>
+              <button id="freezeAutoSkip">Pause Auto</button>
               <button id="stopAll">Stop All</button>
-              <button id="freezeAutoSkip">Freeze Auto-Skip</button>
             </div>
             <textarea id="script" class="editor" spellcheck="false"></textarea>
             <p class="hint">Write JavaScript using helpers: set, rect, line, clear, hsv, text, W, H. The script body runs once per frame; use i as the frame number.</p>
@@ -93,6 +94,18 @@ W=12, H=12, frame number is i</pre>
         </aside>
       </section>
     </main>
+    <script>
+      const darkModeToggle = document.getElementById('darkModeToggle');
+      const html = document.documentElement;
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      html.setAttribute('data-theme', savedTheme);
+      darkModeToggle.addEventListener('click', () => {
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+      });
+    </script>
     <script src="/animations.js"></script>
   </body>
 </html>

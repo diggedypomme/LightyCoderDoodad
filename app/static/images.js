@@ -327,7 +327,13 @@ dropZoneEl.addEventListener("drop", (event) => {
   const file = Array.from(event.dataTransfer.files || []).find((item) => item.type.startsWith("image/"));
   loadFile(file).catch((err) => addLog(err.message));
 });
-[zoomEl, pixelSizeEl, offsetXEl, offsetYEl, brightnessEl, contrastEl, saturationEl, ditherEl].forEach((el) => el.addEventListener("input", sampleImage));
+// Debounce sampleImage to prevent flickering during slider drag
+let sampleTimeout = null;
+function debouncedSample() {
+  if (sampleTimeout) clearTimeout(sampleTimeout);
+  sampleTimeout = setTimeout(sampleImage, 50);
+}
+[zoomEl, pixelSizeEl, offsetXEl, offsetYEl, brightnessEl, contrastEl, saturationEl, ditherEl].forEach((el) => el.addEventListener("input", debouncedSample));
 document.querySelector("#connect").addEventListener("click", async () => { await api("/api/connect", {}); addLog("connected"); await refreshStatus(); });
 document.querySelector("#startPaint").addEventListener("click", async () => { await api("/api/start-paint", {}); addLog("sent start paint"); await refreshStatus(); });
 document.querySelector("#disconnect").addEventListener("click", async () => { await api("/api/disconnect", {}); addLog("disconnected"); await refreshStatus(); });

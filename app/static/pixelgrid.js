@@ -6,6 +6,8 @@ const rEl = document.querySelector("#r");
 const gEl = document.querySelector("#g");
 const bEl = document.querySelector("#b");
 const swatchesEl = document.querySelector("#swatches");
+const colorPickerEl = document.querySelector("#colorPicker");
+const brightnessEl = document.querySelector("#brightness");
 
 const WIDTH = 12;
 const HEIGHT = 12;
@@ -13,7 +15,7 @@ const pixelBuffer = Array.from({ length: WIDTH * HEIGHT }, () => [0, 0, 0]);
 const cells = [];
 
 const SWATCHES = [
-  ["stock blue-ish", 5, 20, 220],
+  ["orange", 255, 128, 0],
   ["red", 255, 0, 0],
   ["green", 0, 255, 0],
   ["blue", 0, 0, 255],
@@ -45,14 +47,34 @@ function clampByte(value) {
 }
 
 function colour() {
+  const brightness = clampByte(brightnessEl.value) / 255;
   return {
-    r: clampByte(rEl.value),
-    g: clampByte(gEl.value),
-    b: clampByte(bEl.value),
+    r: Math.round(clampByte(rEl.value) * brightness),
+    g: Math.round(clampByte(gEl.value) * brightness),
+    b: Math.round(clampByte(bEl.value) * brightness),
   };
 }
 
 function setColour(r, g, b) {
+  rEl.value = String(r);
+  gEl.value = String(g);
+  bEl.value = String(b);
+  updateColorPicker();
+}
+
+function updateColorPicker() {
+  const r = clampByte(rEl.value);
+  const g = clampByte(gEl.value);
+  const b = clampByte(bEl.value);
+  const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  colorPickerEl.value = hex;
+}
+
+function updateRGBFromPicker() {
+  const hex = colorPickerEl.value;
+  const r = parseInt(hex.substr(1, 2), 16);
+  const g = parseInt(hex.substr(3, 2), 16);
+  const b = parseInt(hex.substr(5, 2), 16);
   rEl.value = String(r);
   gEl.value = String(g);
   bEl.value = String(b);
@@ -223,6 +245,14 @@ document.querySelector("#startPaint").addEventListener("click", async () => {
 document.querySelector("#sendBlack").addEventListener("click", () => sendAllOff().catch((err) => addLog(err.message)));
 document.querySelector("#sendCanvas").addEventListener("click", () => sendBuffer("selected canvas").catch((err) => addLog(err.message)));
 document.querySelector("#clearCanvas").addEventListener("click", () => clearSelection());
+document.querySelector("#setBlack").addEventListener("click", () => setColour(0, 0, 0));
+
+// Color picker sync
+colorPickerEl.addEventListener("input", updateRGBFromPicker);
+[rEl, gEl, bEl].forEach(el => el.addEventListener("input", updateColorPicker));
+brightnessEl.addEventListener("input", () => {
+  // Brightness slider just affects the output, not the base color
+});
 
 async function init() {
   renderSwatches();

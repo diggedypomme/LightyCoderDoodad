@@ -24,18 +24,20 @@
     <main>
       <header>
         <div>
-          <h1>Paint Images</h1>
+          <h1>Paint Images <span class="project-name">LightyCoderDoodad</span></h1>
           <p id="status">Loading...</p>
         </div>
         <div class="toolbar">
+          <button id="darkModeToggle" title="Toggle dark mode">◐</button>
           <button id="connect" class="primary-action">Connect</button>
           <button id="startPaint" class="secondary-action">Start Paint</button>
           <button id="disconnect" class="danger-action">Disconnect</button>
-          <a class="button-link" href="/onboard.html">Onboard Apps</a>
-          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/">Pixel Grid</a>
           <a class="button-link" href="/experiments.html">Experiments</a>
-          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
-          <a class="button-link" href="/">Main</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <span class="button-link current-page">Images</span>
+          <a class="button-link" href="/onboard.html">Onboard</a>
+          <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
         </div>
       </header>
 
@@ -114,6 +116,18 @@
         </aside>
       </section>
     </main>
+    <script>
+      const darkModeToggle = document.getElementById('darkModeToggle');
+      const html = document.documentElement;
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      html.setAttribute('data-theme', savedTheme);
+      darkModeToggle.addEventListener('click', () => {
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+      });
+    </script>
     <script src="/images.js"></script>
   </body>
 </html>

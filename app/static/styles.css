@@ -1,8 +1,40 @@
 :root {
   color-scheme: light;
   font-family: Arial, Helvetica, sans-serif;
-  background: #f6f7f8;
-  color: #151719;
+  --bg-main: #f6f7f8;
+  --bg-panel: #fff;
+  --bg-input: #fff;
+  --bg-button: #fff;
+  --bg-code: #f4f6f8;
+  --bg-cell: #eef1f4;
+  --bg-hover: #eef4ff;
+  --text-main: #151719;
+  --text-dim: #5f6872;
+  --text-code: #4c5660;
+  --text-cell: #59636e;
+  --border-main: #d7dde3;
+  --border-input: #b8c0c8;
+  --border-cell: #aab3bc;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-main: #1a1d21;
+  --bg-panel: #24282d;
+  --bg-input: #2d3239;
+  --bg-button: #2d3239;
+  --bg-code: #1e2227;
+  --bg-cell: #2d3239;
+  --bg-hover: #363c44;
+  --text-main: #e8eaed;
+  --text-dim: #a0a8b1;
+  --text-code: #8f98a3;
+  --text-cell: #7d8691;
+  --border-main: #3d4450;
+  --border-input: #4a5260;
+  --border-cell: #4a5260;
 }
 
 * {
@@ -45,15 +77,16 @@ button, select, input, textarea {
 }
 
 button, .button-link {
-  border: 1px solid #b8c0c8;
+  border: 1px solid var(--border-input);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg-button);
   padding: 8px 10px;
   cursor: pointer;
+  color: var(--text-main);
 }
 
 button:hover, .button-link:hover {
-  background: #eef4ff;
+  background: var(--bg-hover);
 }
 
 .toolbar, .buttons {
@@ -69,8 +102,8 @@ button:hover, .button-link:hover {
 }
 
 .panel {
-  background: #fff;
-  border: 1px solid #d7dde3;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-main);
   border-radius: 8px;
   padding: 14px;
   margin-bottom: 16px;
@@ -93,13 +126,13 @@ button:hover, .button-link:hover {
 
 .cell {
   aspect-ratio: 1;
-  border: 1px solid #aab3bc;
+  border: 1px solid var(--border-cell);
   border-radius: 5px;
-  background: #eef1f4;
+  background: var(--bg-cell);
   display: grid;
   place-items: center;
   font-size: 10px;
-  color: #59636e;
+  color: var(--text-cell);
   user-select: none;
 }
 
@@ -115,7 +148,7 @@ button:hover, .button-link:hover {
 
 .hint {
   margin-top: 10px;
-  color: #5f6872;
+  color: var(--text-dim);
   font-size: 13px;
 }
 
@@ -126,10 +159,12 @@ label {
 }
 
 input, select, textarea {
-  border: 1px solid #b8c0c8;
+  border: 1px solid var(--border-input);
   border-radius: 6px;
   padding: 8px;
   width: 100%;
+  background: var(--bg-input);
+  color: var(--text-main);
 }
 
 textarea {
@@ -149,9 +184,10 @@ pre, .mono {
 pre {
   max-height: 360px;
   overflow: auto;
-  background: #f4f6f8;
+  background: var(--bg-code);
   border-radius: 6px;
   padding: 10px;
+  color: var(--text-main);
 }
 
 @media (max-width: 900px) {
@@ -206,9 +242,25 @@ pre {
   min-width: 360px;
 }
 .button-link {
-  color: #151719;
+  color: var(--text-main);
   text-decoration: none;
   display: inline-block;
+}
+
+.project-name {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: normal;
+  margin-top: 2px;
+}
+
+#darkModeToggle {
+  background: var(--bg-button);
+  border: 1px solid var(--border-input);
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 18px;
 }
 /* Hex lab: let the log use the full two-column width. */
 .lab-layout > div:first-child {
@@ -305,12 +357,12 @@ pre {
 }
 /* Device actions are controls, not page navigation. */
 .toolbar button {
-  background: #f7fbff;
-  border-color: #8fb6dc;
+  background: var(--bg-button);
+  border-color: var(--border-input);
 }
 
 .toolbar button:hover {
-  background: #e7f1ff;
+  background: var(--bg-hover);
 }
 
 .primary-action,
@@ -322,6 +374,15 @@ pre {
   color: #123b63;
 }
 
+[data-theme="dark"] .primary-action,
+[data-theme="dark"] #connect,
+[data-theme="dark"] #scanDevices,
+[data-theme="dark"] #useDevice {
+  background: #1a3a5a;
+  border-color: #3a6a9a;
+  color: #b3d4ff;
+}
+
 .secondary-action,
 #startPaint,
 #startDemo,
@@ -331,11 +392,27 @@ pre {
   color: #164b25;
 }
 
+[data-theme="dark"] .secondary-action,
+[data-theme="dark"] #startPaint,
+[data-theme="dark"] #startDemo,
+[data-theme="dark"] #startTestmode {
+  background: #1a3a2a;
+  border-color: #3a7a5a;
+  color: #a3d4b3;
+}
+
 .danger-action,
 #disconnect {
   background: #fff0f0;
   border-color: #d58a8a;
   color: #6d1515;
+}
+
+[data-theme="dark"] .danger-action,
+[data-theme="dark"] #disconnect {
+  background: #3a1a1a;
+  border-color: #7a3a3a;
+  color: #ffb3b3;
 }
 
 .toolbar button + .button-link,
@@ -353,4 +430,28 @@ pre {
 .button-link:hover {
   background: #eef4ff;
   border-color: #cbd9ea;
+}
+
+[data-theme="dark"] .button-link {
+  color: #6ba3d8;
+}
+
+[data-theme="dark"] .button-link:hover {
+  background: #2d3842;
+  border-color: #3d4a57;
+}
+
+.button-link.current-page {
+  background: #d4e4f7;
+  border-color: #8fb3d9;
+  color: #0d3a5f;
+  font-weight: 600;
+  cursor: default;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .button-link.current-page {
+  background: #2a3f54;
+  border-color: #3d5a73;
+  color: #9fb8d1;
 }

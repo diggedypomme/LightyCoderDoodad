@@ -743,17 +743,6 @@ if (flap) {
   set(7, y, 255, 150, 200);
 }`,
 
-  "claude windmill": `// Spinning windmill
-const a1 = (i / 3) % (Math.PI * 2);
-const a2 = a1 + Math.PI / 2;
-const a3 = a1 + Math.PI;
-const a4 = a1 + 3 * Math.PI / 2;
-line(6, 6, Math.round(6 + Math.cos(a1) * 4), Math.round(6 + Math.sin(a1) * 4), 255, 255, 255);
-line(6, 6, Math.round(6 + Math.cos(a2) * 4), Math.round(6 + Math.sin(a2) * 4), 255, 255, 255);
-line(6, 6, Math.round(6 + Math.cos(a3) * 4), Math.round(6 + Math.sin(a3) * 4), 255, 255, 255);
-line(6, 6, Math.round(6 + Math.cos(a4) * 4), Math.round(6 + Math.sin(a4) * 4), 255, 255, 255);
-set(6, 6, 200, 200, 200);`,
-
   "claude rocket": `// Rocket launch
 const y = Math.max(0, 10 - i);
 if (y > 0) {

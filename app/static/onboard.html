@@ -11,9 +11,12 @@
       .app-card { border: 1px solid #d7dde3; border-radius: 8px; padding: 12px; background: #f8fafc; }
       .app-card h3 { margin: 0 0 8px; font-size: 16px; }
       .app-card p { color: #4c5660; font-size: 13px; margin-bottom: 10px; }
+      [data-theme="dark"] .app-card { border-color: #3d4450; background: #2d3239; }
+      [data-theme="dark"] .app-card p { color: #a0a8b1; }
       .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: end; margin-bottom: 14px; }
       .device-row label { margin: 0; }
       .docs-embed { margin-top: 16px; border-top: 1px solid #d7dde3; padding-top: 14px; }
+      [data-theme="dark"] .docs-embed { border-top-color: #3d4450; }
       .docs-embed h1 { display: none; }
       .docs-embed h2, .docs-embed h3 { margin-top: 16px; margin-bottom: 8px; }
       .docs-embed p, .docs-embed li { line-height: 1.45; margin: 7px 0; }
@@ -26,17 +29,19 @@
     <main>
       <header>
         <div>
-          <h1>Onboard Apps</h1>
+          <h1>Onboard Apps <span class="project-name">LightyCoderDoodad</span></h1>
           <p id="status">Loading...</p>
         </div>
         <div class="toolbar">
+          <button id="darkModeToggle" title="Toggle dark mode">◐</button>
           <button id="connect">Connect</button>
           <button id="disconnect">Disconnect</button>
+          <a class="button-link" href="/">Pixel Grid</a>
           <a class="button-link" href="/experiments.html">Experiments</a>
           <a class="button-link" href="/animations.html">Animations</a>
           <a class="button-link" href="/images.html">Images</a>
-          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
-          <a class="button-link" href="/">Main</a>
+          <span class="button-link current-page">Onboard</span>
+          <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
         </div>
       </header>
 
@@ -90,6 +95,18 @@
         </aside>
       </section>
     </main>
+    <script>
+      const darkModeToggle = document.getElementById('darkModeToggle');
+      const html = document.documentElement;
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      html.setAttribute('data-theme', savedTheme);
+      darkModeToggle.addEventListener('click', () => {
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+      });
+    </script>
     <script src="/onboard.js"></script>
   </body>
 </html>

@@ -29,20 +29,19 @@
     <main>
       <header>
         <div>
-          <h1>Paint Experiments</h1>
+          <h1>Paint Experiments <span class="project-name">LightyCoderDoodad</span></h1>
           <p id="status">Loading...</p>
         </div>
         <div class="toolbar">
+          <button id="darkModeToggle" title="Toggle dark mode">◐</button>
           <button id="connect">Connect</button>
           <button id="startPaint">Start Paint</button>
-          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
-          <a class="button-link" href="/hexlab.html">Hex Lab</a>
-          <a class="button-link" href="/">Main</a>
-                  <a class="button-link" href="/observe.html">Observe</a>
-                  <a class="button-link" href="/sweep.html">Sweep</a>
-                  <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/">Pixel Grid</a>
+          <span class="button-link current-page">Experiments</span>
+          <a class="button-link" href="/animations.html">Animations</a>
           <a class="button-link" href="/images.html">Images</a>
-                  <a class="button-link" href="/onboard.html">Onboard Apps</a>
+          <a class="button-link" href="/onboard.html">Onboard</a>
+          <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
         </div>
       </header>
 
@@ -101,7 +100,7 @@
               Bookmarklet code
               <textarea id="wordleBookmarklet" readonly spellcheck="false"></textarea>
             </label>
-            <p class="hint">Drag the "Wordle to Arcade Coder" link to your bookmarks bar, open the Wordle stats panel, then click that bookmark.</p>
+            <p class="hint"><strong>How to use:</strong> Drag the "Wordle to Arcade Coder" link above to your bookmarks bar (or favorites). Then go to <a href="https://www.nytimes.com/games/wordle/index.html" target="_blank">NYT Wordle</a>, open your stats, and click the bookmarklet to send your scores to the Arcade Coder!</p>
             <div class="actions">
               <button id="parseWordle">Parse HTML</button>
               <button id="previewWordle">Preview Wordle</button>
@@ -172,6 +171,18 @@
         </aside>
       </section>
     </main>
+    <script>
+      const darkModeToggle = document.getElementById('darkModeToggle');
+      const html = document.documentElement;
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      html.setAttribute('data-theme', savedTheme);
+      darkModeToggle.addEventListener('click', () => {
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+      });
+    </script>
     <script src="/experiments.js"></script>
   </body>
 </html>
