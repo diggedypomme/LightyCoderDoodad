@@ -151,6 +151,10 @@
               <span id="gpuText">--</span>
             </div>
             <p class="hint">Network uses total RX+TX throughput as a percentage of 500 Mbps. VRAM and GPU each use one LED row, with a blank row before each.</p>
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; margin: 10px 0;">
+              <label style="margin: 0;">Auto Interval (s)</label>
+              <input id="systemInterval" type="number" min="0.1" max="60" step="0.1" value="10" style="width: 100px;">
+            </div>
             <div class="actions">
               <button id="fetchSystem">Fetch System</button>
               <button id="sendSystem">Send System</button>

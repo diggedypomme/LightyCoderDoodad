@@ -14,6 +14,7 @@ const vramBarEl = document.querySelector("#vramBar");
 const vramTextEl = document.querySelector("#vramText");
 const gpuBarEl = document.querySelector("#gpuBar");
 const gpuTextEl = document.querySelector("#gpuText");
+const systemIntervalEl = document.querySelector("#systemInterval");
 const wordleHtmlEl = document.querySelector("#wordleHtml");
 const wordleInputs = [1, 2, 3, 4, 5, 6].map((n) => document.querySelector(`#wordle${n}`));
 const wordleBookmarkletEl = document.querySelector("#wordleBookmarklet");
@@ -398,16 +399,19 @@ async function fetchSystem() {
   const netMbps = data.networkTotalMbps;
   const vram = data.vramPercent;
   const gpu = data.gpuPercent;
+
   cpuBarEl.style.width = `${clampPercent(cpu)}%`;
   ramBarEl.style.width = `${clampPercent(ram)}%`;
   netBarEl.style.width = `${clampPercent(netPercent)}%`;
   vramBarEl.style.width = `${clampPercent(vram)}%`;
   gpuBarEl.style.width = `${clampPercent(gpu)}%`;
+
   cpuTextEl.textContent = cpu == null ? "warming" : `${cpu.toFixed(0)}%`;
   ramTextEl.textContent = `${ram.toFixed(0)}%`;
   netTextEl.textContent = percentLabel(netPercent);
   vramTextEl.textContent = percentLabel(vram);
   gpuTextEl.textContent = percentLabel(gpu);
+
   buildSystemCanvas(cpu, ram, netPercent, netMbps, vram, gpu);
   addLog(`system cpu=${cpu == null ? "warming" : cpu.toFixed(1)} ram=${ram.toFixed(1)} net=${netMbps == null ? "warming" : netMbps.toFixed(2) + "Mbps"} vram=${percentLabel(vram)} gpu=${percentLabel(gpu)}`);
   return data;
@@ -442,10 +446,12 @@ function toggleSystemAuto() {
     addLog("stopped auto system");
     return;
   }
+  const intervalSeconds = Math.max(0.1, Number(systemIntervalEl.value) || 10);
+  const intervalMs = intervalSeconds * 1000;
   sendSystem().catch((err) => addLog(err.message));
-  autoSystemTimer = setInterval(() => sendSystem().catch((err) => addLog(err.message)), 10000);
+  autoSystemTimer = setInterval(() => sendSystem().catch((err) => addLog(err.message)), intervalMs);
   button.textContent = "Stop Auto System";
-  addLog("started auto system every 10 sec");
+  addLog(`started auto system every ${intervalSeconds} sec`);
 }
 
 document.querySelector("#connect").addEventListener("click", async () => {
