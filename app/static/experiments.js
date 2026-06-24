@@ -15,6 +15,7 @@ const vramTextEl = document.querySelector("#vramText");
 const gpuBarEl = document.querySelector("#gpuBar");
 const gpuTextEl = document.querySelector("#gpuText");
 const systemIntervalEl = document.querySelector("#systemInterval");
+const inputNumberEl = document.querySelector("#inputNumber");
 const wordleHtmlEl = document.querySelector("#wordleHtml");
 const wordleInputs = [1, 2, 3, 4, 5, 6].map((n) => document.querySelector(`#wordle${n}`));
 const wordleBookmarkletEl = document.querySelector("#wordleBookmarklet");
@@ -112,20 +113,25 @@ function renderGrid() {
   }
 }
 
-function fillFirstCount(count, rgb) {
+function fillFirstCount(count, rgb, fromTop = false) {
   fillBlack();
   for (let n = 0; n < count; n += 1) {
-    const yFromBottom = Math.floor(n / WIDTH);
     const x = n % WIDTH;
-    const y = HEIGHT - 1 - yFromBottom;
-    if (y >= 0) setPixel(x, y, rgb);
+    const y = fromTop ? Math.floor(n / WIDTH) : HEIGHT - 1 - Math.floor(n / WIDTH);
+    if (y >= 0 && y < HEIGHT) setPixel(x, y, rgb);
   }
   renderGrid();
 }
 
+function buildInputNumberCanvas(count) {
+  const ledCount = Math.max(0, Math.min(144, Number(count) || 0));
+  fillFirstCount(ledCount, [255, 255, 255], true);  // fromTop = true
+  previewEl.textContent = `input number\nleds=${ledCount}\ndisplay rgb=(255,255,255)`;
+}
+
 function buildAuroraCanvas(statusId) {
   const level = AURORA_LEVELS[statusId] || AURORA_LEVELS.green;
-  fillFirstCount(level.count, level.rgb);
+  fillFirstCount(level.count, level.rgb, false);  // fromTop = false (bottom-up for aurora)
   previewEl.textContent = `aurora ${statusId}\nleds=${level.count}\ndisplay rgb=(${level.rgb.join(",")})`;
 }
 
@@ -391,6 +397,20 @@ async function sendManualAurora() {
   await sendCurrent(`manual aurora ${manualAuroraEl.value}`);
 }
 
+function previewInputNumber() {
+  const count = Number(inputNumberEl.value) || 0;
+  buildInputNumberCanvas(count);
+  addLog(`input number ${count}`);
+}
+
+async function sendInputNumber() {
+  const count = Number(inputNumberEl.value) || 0;
+  const result = await api("/api/send-number", { count, startIfNeeded: false });
+  previewInputNumber();
+  addLog(`sent input number ${count}, ${result.canvasBytes} bytes`);
+  await refreshStatus();
+}
+
 async function fetchSystem() {
   const data = await api("/api/system-stats");
   const cpu = data.cpuPercent;
@@ -465,6 +485,8 @@ document.querySelector("#startPaint").addEventListener("click", async () => {
   await refreshStatus();
 });
 document.querySelector("#sendCurrent").addEventListener("click", () => sendCurrent().catch((err) => addLog(err.message)));
+document.querySelector("#previewNumber").addEventListener("click", previewInputNumber);
+document.querySelector("#sendNumber").addEventListener("click", () => sendInputNumber().catch((err) => addLog(err.message)));
 document.querySelector("#fetchAurora").addEventListener("click", () => fetchAurora().catch((err) => addLog(err.message)));
 document.querySelector("#sendAurora").addEventListener("click", () => sendAurora().catch((err) => addLog(err.message)));
 document.querySelector("#manualAuroraPreview").addEventListener("click", previewManualAurora);

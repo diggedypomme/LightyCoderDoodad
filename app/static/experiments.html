@@ -57,6 +57,19 @@
           </div>
 
           <div class="panel">
+            <h2>Input Number</h2>
+            <p class="hint">Light up N LEDs starting from top-left (0,0), wrapping across rows.</p>
+            <label>
+              LED count (0-144)
+              <input id="inputNumber" type="number" min="0" max="144" value="0">
+            </label>
+            <div class="actions">
+              <button id="previewNumber">Preview</button>
+              <button id="sendNumber">Send</button>
+            </div>
+          </div>
+
+          <div class="panel">
             <h2>AuroraWatch</h2>
             <p class="hint">Uses AuroraWatch UK API v0.2 current status XML. Mapping: green 12 LEDs, yellow 48, amber 96, red 144.</p>
             <label>

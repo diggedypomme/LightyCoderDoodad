@@ -815,6 +815,20 @@ class Handler(BaseHTTPRequestHandler):
                 payload[offset] = value
                 result = STATE.run(STATE.session.send_canvas(payload.hex(), bool(body.get("startIfNeeded", False))))
                 json_response(self, 200, {"ok": True, "old": old, "payload": payload.hex(), **result, "status": STATE.session.status()})
+            elif self.path == "/api/send-number":
+                count = max(0, min(144, int(body.get("count", 0))))
+                width = 12
+                height = 12
+                # Create RGB buffer with N white LEDs from top-left
+                rgb = bytearray()
+                for i in range(width * height):
+                    if i < count:
+                        rgb.extend([255, 255, 255])  # White
+                    else:
+                        rgb.extend([0, 0, 0])  # Black/off
+                canvas = compact_canvas_from_rgb(width, height, bytes(rgb))
+                result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "count": count, **result, "status": STATE.session.status()})
             elif self.path == "/api/observe":
                 row = {"time": time.time(), **body}
                 with OBS_PATH.open("a", encoding="utf-8") as handle:
