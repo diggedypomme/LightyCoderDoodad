@@ -13,6 +13,7 @@ const WIDTH = 12;
 const HEIGHT = 12;
 const pixelBuffer = Array.from({ length: WIDTH * HEIGHT }, () => [0, 0, 0]);
 const cells = [];
+let lastSyncedNotify = null;
 
 const SWATCHES = [
   ["orange", 255, 128, 0],
@@ -128,6 +129,10 @@ function displayToWireRgb(rgb) {
   return { r: rgb.b, g: rgb.g, b: rgb.r };
 }
 
+function wireToDisplayPixel(pixel) {
+  return [pixel[2], pixel[1], pixel[0]];
+}
+
 function wirePixels() {
   return pixelBuffer.map(displayToWirePixel);
 }
@@ -182,12 +187,51 @@ function renderGrid() {
 async function refreshStatus() {
   const status = await api("/api/status");
   statusEl.textContent = `${status.connected ? "Connected" : "Disconnected"} | paint ${status.paintStarted ? "started" : "not started"} | ${status.address}`;
+
+  // Apply decoded canvas if sync is enabled
+  const syncCheckbox = document.querySelector("#syncFromDevice");
+  if (syncCheckbox && syncCheckbox.checked) {
+    if (!status.decodedCanvas) {
+      // Debug: check why decode failed
+      if (status.lastNotify) {
+        console.log("Sync enabled but decode failed. lastNotify:", status.lastNotify);
+      }
+    } else {
+      const decoded = status.decodedCanvas;
+      console.log("Decoded canvas:", decoded.width, "x", decoded.height, "pixels:", decoded.pixels.length);
+      if (decoded.width === WIDTH && decoded.height === HEIGHT && status.lastNotify && status.lastNotify !== lastSyncedNotify) {
+        // Convert wire pixels to display pixels (swap red/blue) and update buffer
+        for (let i = 0; i < decoded.pixels.length; i++) {
+          pixelBuffer[i] = wireToDisplayPixel(decoded.pixels[i]);
+        }
+        renderAllCells();
+        lastSyncedNotify = status.lastNotify;
+        const litPixels = litCount();
+        console.log("Synced! Lit pixels:", litPixels);
+        if (litPixels > 0) {
+          addLog(`synced ${litPixels} lit pixel(s) from device`);
+        }
+      }
+    }
+  }
 }
 
 async function sendPixel(x, y) {
   const rgb = colour();
   const wire = displayToWireRgb(rgb);
   const result = await api("/api/send-single-pixel", { x, y, ...wire, startIfNeeded: false });
+
+  // Update local buffer so you can see what you sent (don't use sync mode for this)
+  const syncCheckbox = document.querySelector("#syncFromDevice");
+  if (!syncCheckbox || !syncCheckbox.checked) {
+    // Clear entire grid first (since we're sending a canvas with only one pixel)
+    clearSelection(false);
+    // Then set the clicked pixel
+    if (rgb.r !== 0 || rgb.g !== 0 || rgb.b !== 0) {
+      setPixel(x, y, rgb);
+    }
+  }
+
   previewEl.textContent = [
     `single pixel x=${x} y=${y}`,
     `display rgb=(${rgb.r}, ${rgb.g}, ${rgb.b})`,

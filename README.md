@@ -41,6 +41,7 @@ Included controllers:
 - `scripts/` - command-line tools for scanning, starting modules, sending canvases, and sending pixels.
 - `android/` - native Android controller scaffold.
 - `stock_protocol/` - small BLE/protobuf helper used by the Python tools.
+- `examples/esp32_arcade_paint/` - Arduino ESP32 sketch showing direct BLE control from another microcontroller.
 
 The web UI includes:
 
@@ -109,6 +110,10 @@ venv\Scripts\python.exe scripts\start_module.py testmode
 venv\Scripts\python.exe scripts\send_canvas.py br --start
 venv\Scripts\python.exe scripts\send_pixel.py 11 11 --colour red --start
 ```
+
+## Microcontroller Example
+
+An ESP32 Arduino sketch is included at [examples/esp32_arcade_paint](examples/esp32_arcade_paint). It connects over BLE, starts the stock `paint` module, and sends a few pre-compressed one-pixel canvas commands.
 
 ## Android App
 

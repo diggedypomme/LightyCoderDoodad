@@ -134,6 +134,99 @@ def deflate_raw(data: bytes, level: int = 9) -> bytes:
     return compressor.compress(data) + compressor.flush()
 
 
+def inflate_raw(data: bytes) -> bytes:
+    """Decompress raw DEFLATE data (no zlib header)."""
+    decompressor = zlib.decompressobj(wbits=-15)
+    return decompressor.decompress(data) + decompressor.flush()
+
+
+def decode_varint(data: bytes, pos: int) -> tuple[int, int]:
+    """Decode a varint at position pos, return (value, new_position)."""
+    value = 0
+    shift = 0
+    while pos < len(data):
+        byte = data[pos]
+        pos += 1
+        value |= (byte & 0x7F) << shift
+        if not (byte & 0x80):
+            return value, pos
+        shift += 7
+    raise ValueError("Truncated varint")
+
+
+def decode_field_header(data: bytes, pos: int) -> tuple[int, int, int]:
+    """Decode field header, return (field_num, wire_type, new_position)."""
+    key, pos = decode_varint(data, pos)
+    field_num = key >> 3
+    wire_type = key & 0x07
+    return field_num, wire_type, pos
+
+
+def extract_canvas_from_protobuf(data: bytes) -> bytes | None:
+    """Extract compact canvas from protobuf notification structure."""
+    try:
+        # Notifications structure: field 1 (VARINT), field 3 (LEN) containing field 1 (LEN) with canvas
+        pos = 0
+        while pos < len(data):
+            field_num, wire_type, pos = decode_field_header(data, pos)
+            if wire_type == WIRE_LEN:
+                length, pos = decode_varint(data, pos)
+                if field_num == 3:  # Response payload field
+                    # This contains the canvas, extract field 1 from it
+                    payload = data[pos:pos + length]
+                    inner_pos = 0
+                    while inner_pos < len(payload):
+                        inner_field, inner_wire, inner_pos = decode_field_header(payload, inner_pos)
+                        if inner_wire == WIRE_LEN:
+                            inner_length, inner_pos = decode_varint(payload, inner_pos)
+                            if inner_field == 1:  # Canvas data field
+                                return payload[inner_pos:inner_pos + inner_length]
+                            inner_pos += inner_length
+                        elif inner_wire == WIRE_VARINT:
+                            _, inner_pos = decode_varint(payload, inner_pos)
+                pos += length
+            elif wire_type == WIRE_VARINT:
+                _, pos = decode_varint(data, pos)
+        return None
+    except Exception:
+        return None
+
+
+def decode_compact_canvas(canvas_hex: str) -> dict[str, object] | None:
+    """Decode a compact canvas notification into pixel data."""
+    try:
+        data = bytes.fromhex(canvas_hex.replace(" ", ""))
+
+        # Try to extract canvas from protobuf wrapper first
+        canvas = extract_canvas_from_protobuf(data)
+        if not canvas:
+            # Fallback: assume it's raw compact canvas
+            canvas = data
+
+        if len(canvas) < 2:
+            return None
+        width = canvas[0]
+        height = canvas[1]
+        if not (1 <= width <= 12 and 1 <= height <= 12):
+            return None
+        compressed = canvas[2:]
+        rgb_data = inflate_raw(compressed)
+        expected_size = width * height * 3
+        if len(rgb_data) != expected_size:
+            return None
+        # Convert to list of [r, g, b] pixels
+        pixels = []
+        for i in range(0, len(rgb_data), 3):
+            pixels.append([rgb_data[i], rgb_data[i + 1], rgb_data[i + 2]])
+        return {
+            "width": width,
+            "height": height,
+            "pixels": pixels,
+        }
+    except Exception:
+        return None
+
+
 def compact_canvas_from_rgb(width: int, height: int, rgb: bytes) -> bytes:
     expected = width * height * 3
     if not (1 <= width <= 12 and 1 <= height <= 12):
@@ -398,13 +491,33 @@ class BleSession:
         self.add_log(f"notify {len(raw)} bytes hex: {spaced_hex(raw)} | dec: {decimal_bytes(raw)}")
 
     async def ensure_connected(self) -> None:
-        if self.client and self.client.is_connected:
-            return
+        # Check if we have a valid connection
+        try:
+            if self.client and self.client.is_connected:
+                return
+        except OSError:
+            # Windows COM error - connection is stale, force reconnect
+            self.add_log("stale connection detected, forcing reconnect")
+            self.client = None
+
         self.add_log(f"connecting to {self.address}")
         self.client = BleakClient(self.address)
         await self.client.connect()
         await self.client.start_notify(CALLBACK_CHAR, self.on_notify)
         self.add_log("connected and subscribed")
+
+    async def write_with_retry(self, characteristic: str, data: bytes, response: bool = False) -> None:
+        """Write to GATT characteristic with automatic reconnect on COM errors."""
+        assert self.client is not None
+        try:
+            await self.client.write_gatt_char(characteristic, data, response=response)
+        except OSError as exc:
+            # Windows COM error - try reconnecting once
+            self.add_log(f"write failed ({exc}), reconnecting and retrying")
+            self.client = None
+            await self.ensure_connected()
+            assert self.client is not None
+            await self.client.write_gatt_char(characteristic, data, response=response)
 
     async def disconnect(self) -> None:
         if self.client and self.client.is_connected:
@@ -414,8 +527,7 @@ class BleSession:
 
     async def start_builtin(self, module_name: str) -> None:
         await self.ensure_connected()
-        assert self.client is not None
-        await self.client.write_gatt_char(COMMAND_CHAR, CommandMessage.start_builtin(module_name), response=False)
+        await self.write_with_retry(COMMAND_CHAR, CommandMessage.start_builtin(module_name), response=False)
         self.started_paint = module_name == "paint"
         self.add_log(f"sent start built-in {module_name}")
 
@@ -428,8 +540,7 @@ class BleSession:
             await self.start_paint()
             await asyncio.sleep(1.5)
         command = compact_canvas_command(canvas)
-        assert self.client is not None
-        await self.client.write_gatt_char(COMMAND_CHAR, command, response=False)
+        await self.write_with_retry(COMMAND_CHAR, command, response=False)
         self.add_log(f"sent canvas {len(canvas)} bytes hex: {spaced_hex(canvas)} | dec: {decimal_bytes(canvas)}")
         return {"canvasBytes": len(canvas), "canvasHex": canvas.hex(), "commandHex": command.hex()}
 
@@ -440,17 +551,18 @@ class BleSession:
             await asyncio.sleep(1.5)
         canvas = bytes.fromhex(canvas_hex.replace(" ", ""))
         command = compact_canvas_command(canvas)
-        assert self.client is not None
-        await self.client.write_gatt_char(COMMAND_CHAR, command, response=False)
+        await self.write_with_retry(COMMAND_CHAR, command, response=False)
         self.add_log(f"sent canvas {len(canvas)} bytes hex: {spaced_hex(canvas)} | dec: {decimal_bytes(canvas)}")
         return {"canvasBytes": len(canvas), "commandHex": command.hex()}
 
     def status(self) -> dict[str, object]:
+        decoded = decode_compact_canvas(self.last_notify) if self.last_notify else None
         return {
             "address": self.address,
             "connected": bool(self.client and self.client.is_connected),
             "paintStarted": self.started_paint,
             "lastNotify": self.last_notify,
+            "decodedCanvas": decoded,
             "log": self.log,
         }
 

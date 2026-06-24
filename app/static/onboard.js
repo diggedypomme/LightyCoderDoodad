@@ -40,18 +40,36 @@ function setDeviceOptions(devices, currentAddress = null) {
 }
 
 async function scanDevices() {
-  addLog("scanning BLE devices...");
-  const data = await api("/api/scan-devices");
-  setDeviceOptions(data.devices, null);
-  addLog(`scan found ${data.devices.length} device(s)`);
+  const button = document.querySelector("#scanDevices");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Scanning...";
+  try {
+    addLog("scanning BLE devices...");
+    const data = await api("/api/scan-devices");
+    setDeviceOptions(data.devices, null);
+    addLog(`scan found ${data.devices.length} device(s)`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
 async function useSelectedDevice() {
-  const address = deviceSelectEl.value;
-  if (!address) throw new Error("No BLE device selected");
-  const data = await api("/api/select-device", { address });
-  addLog(`selected ${data.status.address}`);
-  await refreshStatus();
+  const button = document.querySelector("#useDevice");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Selecting...";
+  try {
+    const address = deviceSelectEl.value;
+    if (!address) throw new Error("No BLE device selected");
+    const data = await api("/api/select-device", { address });
+    addLog(`selected ${data.status.address}`);
+    await refreshStatus();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
 function addLog(text) {
