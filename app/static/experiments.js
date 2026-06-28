@@ -17,6 +17,12 @@ const gpuTextEl = document.querySelector("#gpuText");
 const systemIntervalEl = document.querySelector("#systemInterval");
 const inputNumberEl = document.querySelector("#inputNumber");
 const inputNumberColorEl = document.querySelector("#inputNumberColor");
+const displayNumberEl = document.querySelector("#displayNumber");
+const displayNumberColorEl = document.querySelector("#displayNumberColor");
+const tempApiUrlEl = document.querySelector("#tempApiUrl");
+const tempColorEl = document.querySelector("#tempColor");
+const tempIntervalEl = document.querySelector("#tempInterval");
+const tempInfoEl = document.querySelector("#tempInfo");
 const wordleHtmlEl = document.querySelector("#wordleHtml");
 const wordleInputs = [1, 2, 3, 4, 5, 6].map((n) => document.querySelector(`#wordle${n}`));
 const wordleBookmarkletEl = document.querySelector("#wordleBookmarklet");
@@ -31,6 +37,7 @@ const pixels = Array.from({ length: WIDTH * HEIGHT }, () => [0, 0, 0]);
 const cells = [];
 let autoAuroraTimer = null;
 let autoSystemTimer = null;
+let autoTempTimer = null;
 let audioStream = null;
 let audioContext = null;
 let audioAnalyser = null;
@@ -43,6 +50,20 @@ const AURORA_LEVELS = {
   yellow: { count: 48, rgb: [255, 220, 0] },
   amber: { count: 96, rgb: [255, 100, 0] },
   red: { count: 144, rgb: [255, 0, 0] },
+};
+
+// 3x5 digit patterns (1 = lit, 0 = off)
+const DIGITS = {
+  0: [[1,1,1], [1,0,1], [1,0,1], [1,0,1], [1,1,1]],
+  1: [[0,1,0], [1,1,0], [0,1,0], [0,1,0], [1,1,1]],
+  2: [[1,1,1], [0,0,1], [1,1,1], [1,0,0], [1,1,1]],
+  3: [[1,1,1], [0,0,1], [1,1,1], [0,0,1], [1,1,1]],
+  4: [[1,0,1], [1,0,1], [1,1,1], [0,0,1], [0,0,1]],
+  5: [[1,1,1], [1,0,0], [1,1,1], [0,0,1], [1,1,1]],
+  6: [[1,1,1], [1,0,0], [1,1,1], [1,0,1], [1,1,1]],
+  7: [[1,1,1], [0,0,1], [0,0,1], [0,0,1], [0,0,1]],
+  8: [[1,1,1], [1,0,1], [1,1,1], [1,0,1], [1,1,1]],
+  9: [[1,1,1], [1,0,1], [1,1,1], [0,0,1], [1,1,1]],
 };
 
 async function api(path, body = null) {
@@ -423,6 +444,130 @@ async function sendInputNumber() {
   await refreshStatus();
 }
 
+function drawDigit(digitValue, startX, startY, rgb) {
+  const pattern = DIGITS[digitValue];
+  if (!pattern) return;
+  for (let row = 0; row < pattern.length; row++) {
+    for (let col = 0; col < pattern[row].length; col++) {
+      if (pattern[row][col]) {
+        const x = startX + col;
+        const y = startY + row;
+        if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+          setPixel(x, y, rgb);
+        }
+      }
+    }
+  }
+}
+
+function buildDisplayNumberCanvas(number, r, g, b) {
+  fillBlack();
+  const numStr = String(Math.max(0, Math.min(999, Number(number) || 0)));
+  const digitCount = numStr.length;
+
+  // Calculate starting X position to center the number
+  // Each digit is 3 pixels wide, spacing is 1 pixel
+  const totalWidth = digitCount * 3 + (digitCount - 1);
+  const startX = Math.floor((WIDTH - totalWidth) / 2);
+  const startY = 3; // Center vertically (12 - 5 = 7, 7/2 ≈ 3)
+
+  for (let i = 0; i < numStr.length; i++) {
+    const digit = parseInt(numStr[i]);
+    const x = startX + i * 4; // 3 pixels + 1 spacing
+    drawDigit(digit, x, startY, [r, g, b]);
+  }
+
+  renderGrid();
+  previewEl.textContent = `display number\nvalue=${numStr}\nrgb=(${r},${g},${b})`;
+}
+
+function previewDisplayNumber() {
+  const number = Number(displayNumberEl.value) || 0;
+  const color = hexToRgb(displayNumberColorEl.value);
+  buildDisplayNumberCanvas(number, color.r, color.g, color.b);
+  addLog(`display number ${number} rgb(${color.r},${color.g},${color.b})`);
+}
+
+async function sendDisplayNumber() {
+  const number = Number(displayNumberEl.value) || 0;
+  const color = hexToRgb(displayNumberColorEl.value);
+  const result = await api("/api/display-number", { number, r: color.r, g: color.g, b: color.b, startIfNeeded: false });
+  previewDisplayNumber();
+  addLog(`sent display number ${number} rgb(${color.r},${color.g},${color.b}), ${result.canvasBytes} bytes`);
+  await refreshStatus();
+}
+
+async function fetchTemperature() {
+  const url = tempApiUrlEl.value.trim();
+  if (!url) {
+    throw new Error("API URL is required");
+  }
+
+  // Fetch via backend proxy to avoid CORS issues
+  const proxyUrl = `/api/fetch-temperature?url=${encodeURIComponent(url)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  const proxyResult = await response.json();
+  if (!proxyResult.ok) {
+    throw new Error(proxyResult.error || "Failed to fetch temperature");
+  }
+  const data = proxyResult.data;
+
+  const chartTemp = Number(data.chart_temp) || 0;
+  const roundedTemp = Math.round(chartTemp);
+  const color = hexToRgb(tempColorEl.value);
+
+  // Display info
+  tempInfoEl.textContent = `chart_temp: ${chartTemp}°C\nrounded: ${roundedTemp}°C\nrelay: ${data.relay ? 'ON' : 'OFF'}\nstatus: ${data.fault_text || 'N/A'}`;
+
+  // Send to LED display
+  const displayResult = await api("/api/display-number", {
+    number: roundedTemp,
+    r: color.r,
+    g: color.g,
+    b: color.b,
+    startIfNeeded: false
+  });
+
+  addLog(`temp ${roundedTemp}°C (actual: ${chartTemp}°C)`);
+  return { temp: roundedTemp, chartTemp, data };
+}
+
+function toggleTempAuto() {
+  const button = document.querySelector("#autoTemp");
+  if (autoTempTimer) {
+    clearInterval(autoTempTimer);
+    autoTempTimer = null;
+    button.textContent = "Start Auto";
+    addLog("stopped auto temperature");
+    return;
+  }
+
+  const intervalSeconds = Math.max(0.5, Number(tempIntervalEl.value) || 5);
+  const intervalMs = intervalSeconds * 1000;
+
+  fetchTemperature().catch((err) => {
+    addLog(`temp error: ${err.message}`);
+    clearInterval(autoTempTimer);
+    autoTempTimer = null;
+    button.textContent = "Start Auto";
+  });
+
+  autoTempTimer = setInterval(() => {
+    fetchTemperature().catch((err) => {
+      addLog(`temp error: ${err.message}`);
+      clearInterval(autoTempTimer);
+      autoTempTimer = null;
+      button.textContent = "Start Auto";
+    });
+  }, intervalMs);
+
+  button.textContent = "Stop Auto";
+  addLog(`started auto temperature every ${intervalSeconds} sec`);
+}
+
 async function fetchSystem() {
   const data = await api("/api/system-stats");
   const cpu = data.cpuPercent;
@@ -499,6 +644,10 @@ document.querySelector("#startPaint").addEventListener("click", async () => {
 document.querySelector("#sendCurrent").addEventListener("click", () => sendCurrent().catch((err) => addLog(err.message)));
 document.querySelector("#previewNumber").addEventListener("click", previewInputNumber);
 document.querySelector("#sendNumber").addEventListener("click", () => sendInputNumber().catch((err) => addLog(err.message)));
+document.querySelector("#previewDisplayNumber").addEventListener("click", previewDisplayNumber);
+document.querySelector("#sendDisplayNumber").addEventListener("click", () => sendDisplayNumber().catch((err) => addLog(err.message)));
+document.querySelector("#fetchTemp").addEventListener("click", () => fetchTemperature().catch((err) => addLog(err.message)));
+document.querySelector("#autoTemp").addEventListener("click", toggleTempAuto);
 document.querySelector("#fetchAurora").addEventListener("click", () => fetchAurora().catch((err) => addLog(err.message)));
 document.querySelector("#sendAurora").addEventListener("click", () => sendAurora().catch((err) => addLog(err.message)));
 document.querySelector("#manualAuroraPreview").addEventListener("click", previewManualAurora);
@@ -514,11 +663,34 @@ document.querySelector("#parseWordle").addEventListener("click", parseWordleHtml
 document.querySelector("#previewWordle").addEventListener("click", () => buildWordleCanvas());
 document.querySelector("#sendWordle").addEventListener("click", () => sendWordle().catch((err) => addLog(err.message)));
 
+function loadTempSettings() {
+  const savedUrl = localStorage.getItem('tempApiUrl');
+  const savedColor = localStorage.getItem('tempColor');
+  const savedInterval = localStorage.getItem('tempInterval');
+
+  if (savedUrl) tempApiUrlEl.value = savedUrl;
+  if (savedColor) tempColorEl.value = savedColor;
+  if (savedInterval) tempIntervalEl.value = savedInterval;
+}
+
+function saveTempSettings() {
+  localStorage.setItem('tempApiUrl', tempApiUrlEl.value);
+  localStorage.setItem('tempColor', tempColorEl.value);
+  localStorage.setItem('tempInterval', tempIntervalEl.value);
+}
+
 async function init() {
   renderGrid();
   installWordleBookmarklet();
   buildAuroraCanvas("green");
   importWordleFromHash();
+  loadTempSettings();
+
+  // Save temp settings when changed
+  tempApiUrlEl.addEventListener('change', saveTempSettings);
+  tempColorEl.addEventListener('change', saveTempSettings);
+  tempIntervalEl.addEventListener('change', saveTempSettings);
+
   await refreshStatus();
   setInterval(() => refreshStatus().catch((err) => addLog(err.message)), 1500);
 }

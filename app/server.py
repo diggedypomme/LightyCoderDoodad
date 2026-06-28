@@ -20,7 +20,7 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
@@ -714,6 +714,21 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/system-stats":
             json_response(self, 200, read_system_stats())
             return
+        if parsed.path.startswith("/api/fetch-temperature"):
+            # Proxy external temperature API to avoid CORS issues
+            query = urlparse(self.path).query
+            params = dict(param.split('=', 1) for param in query.split('&') if '=' in param)
+            url = unquote(params.get('url', ''))
+            if not url:
+                json_response(self, 400, {"ok": False, "error": "url parameter required"})
+                return
+            try:
+                with urlopen(url, timeout=10) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+                json_response(self, 200, {"ok": True, "data": data})
+            except Exception as e:
+                json_response(self, 500, {"ok": False, "error": str(e)})
+            return
         if parsed.path == "/api/scan-devices":
             assert STATE is not None
             devices = STATE.run(scan_ble_devices(6.0))
@@ -853,6 +868,59 @@ class Handler(BaseHTTPRequestHandler):
                 canvas = compact_canvas_from_rgb(width, height, bytes(rgb))
                 result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
                 json_response(self, 200, {"ok": True, "count": total_count, **result, "status": STATE.session.status()})
+            elif self.path == "/api/display-number":
+                # 3x5 digit patterns
+                DIGITS = {
+                    0: [[1,1,1], [1,0,1], [1,0,1], [1,0,1], [1,1,1]],
+                    1: [[0,1,0], [1,1,0], [0,1,0], [0,1,0], [1,1,1]],
+                    2: [[1,1,1], [0,0,1], [1,1,1], [1,0,0], [1,1,1]],
+                    3: [[1,1,1], [0,0,1], [1,1,1], [0,0,1], [1,1,1]],
+                    4: [[1,0,1], [1,0,1], [1,1,1], [0,0,1], [0,0,1]],
+                    5: [[1,1,1], [1,0,0], [1,1,1], [0,0,1], [1,1,1]],
+                    6: [[1,1,1], [1,0,0], [1,1,1], [1,0,1], [1,1,1]],
+                    7: [[1,1,1], [0,0,1], [0,0,1], [0,0,1], [0,0,1]],
+                    8: [[1,1,1], [1,0,1], [1,1,1], [1,0,1], [1,1,1]],
+                    9: [[1,1,1], [1,0,1], [1,1,1], [0,0,1], [1,1,1]],
+                }
+
+                number = max(0, min(999, int(body.get("number", 0))))
+                r = max(0, min(255, int(body.get("r", 0))))
+                g = max(0, min(255, int(body.get("g", 255))))
+                b = max(0, min(255, int(body.get("b", 0))))
+
+                width = 12
+                height = 12
+                num_str = str(number)
+                digit_count = len(num_str)
+
+                # Calculate starting X position to center the number
+                total_width = digit_count * 3 + (digit_count - 1)
+                start_x = (width - total_width) // 2
+                start_y = 3  # Center vertically
+
+                # Create RGB buffer
+                rgb_data = bytearray([0, 0, 0] * width * height)
+
+                # Draw each digit
+                for i, digit_char in enumerate(num_str):
+                    digit = int(digit_char)
+                    pattern = DIGITS[digit]
+                    digit_x = start_x + i * 4  # 3 pixels + 1 spacing
+
+                    for row in range(len(pattern)):
+                        for col in range(len(pattern[row])):
+                            if pattern[row][col]:
+                                x = digit_x + col
+                                y = start_y + row
+                                if 0 <= x < width and 0 <= y < height:
+                                    index = (y * width + x) * 3
+                                    rgb_data[index] = r
+                                    rgb_data[index + 1] = g
+                                    rgb_data[index + 2] = b
+
+                canvas = compact_canvas_from_rgb(width, height, bytes(rgb_data))
+                result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "number": number, **result, "status": STATE.session.status()})
             elif self.path == "/api/observe":
                 row = {"time": time.time(), **body}
                 with OBS_PATH.open("a", encoding="utf-8") as handle:

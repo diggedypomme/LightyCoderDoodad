@@ -74,6 +74,45 @@
           </div>
 
           <div class="panel">
+            <h2>Display Number</h2>
+            <p class="hint">Show a number (0-999) in large digits on the display.</p>
+            <label>
+              Number (0-999)
+              <input id="displayNumber" type="number" min="0" max="999" value="0">
+            </label>
+            <label>
+              Color
+              <input id="displayNumberColor" type="color" value="#00ff00">
+            </label>
+            <div class="actions">
+              <button id="previewDisplayNumber">Preview</button>
+              <button id="sendDisplayNumber">Send</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Temperature Monitor</h2>
+            <p class="hint">Poll an external API and display chart_temp on the LED matrix.</p>
+            <label>
+              API URL
+              <input id="tempApiUrl" type="text" value="http://192.168.0.208:8081/api/live">
+            </label>
+            <label>
+              Color
+              <input id="tempColor" type="color" value="#ff6600">
+            </label>
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; margin: 10px 0;">
+              <label style="margin: 0;">Check Interval (s)</label>
+              <input id="tempInterval" type="number" min="0.5" max="60" step="0.5" value="5">
+            </div>
+            <div class="actions">
+              <button id="fetchTemp">Fetch Once</button>
+              <button id="autoTemp">Start Auto</button>
+            </div>
+            <pre id="tempInfo" style="margin-top: 10px; font-size: 11px; max-height: 80px;"></pre>
+          </div>
+
+          <div class="panel">
             <h2>AuroraWatch</h2>
             <p class="hint">Uses AuroraWatch UK API v0.2 current status XML. Mapping: green 12 LEDs, yellow 48, amber 96, red 144.</p>
             <label>
