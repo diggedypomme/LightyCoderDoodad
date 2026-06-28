@@ -816,19 +816,43 @@ class Handler(BaseHTTPRequestHandler):
                 result = STATE.run(STATE.session.send_canvas(payload.hex(), bool(body.get("startIfNeeded", False))))
                 json_response(self, 200, {"ok": True, "old": old, "payload": payload.hex(), **result, "status": STATE.session.status()})
             elif self.path == "/api/send-number":
-                count = max(0, min(144, int(body.get("count", 0))))
                 width = 12
                 height = 12
-                # Create RGB buffer with N white LEDs from top-left
                 rgb = bytearray()
-                for i in range(width * height):
-                    if i < count:
-                        rgb.extend([255, 255, 255])  # White
-                    else:
-                        rgb.extend([0, 0, 0])  # Black/off
+
+                # Check if segments are provided for multi-color support
+                if "segments" in body:
+                    segments = body["segments"]
+                    led_index = 0
+                    for segment in segments:
+                        seg_count = max(0, min(144 - led_index, int(segment.get("count", 0))))
+                        seg_r = max(0, min(255, int(segment.get("r", 255))))
+                        seg_g = max(0, min(255, int(segment.get("g", 255))))
+                        seg_b = max(0, min(255, int(segment.get("b", 255))))
+                        for _ in range(seg_count):
+                            rgb.extend([seg_r, seg_g, seg_b])
+                            led_index += 1
+                    # Fill remaining with black
+                    while led_index < width * height:
+                        rgb.extend([0, 0, 0])
+                        led_index += 1
+                    total_count = sum(int(s.get("count", 0)) for s in segments)
+                else:
+                    # Simple mode: single count and color
+                    count = max(0, min(144, int(body.get("count", 0))))
+                    r = max(0, min(255, int(body.get("r", 255))))
+                    g = max(0, min(255, int(body.get("g", 255))))
+                    b = max(0, min(255, int(body.get("b", 255))))
+                    for i in range(width * height):
+                        if i < count:
+                            rgb.extend([r, g, b])
+                        else:
+                            rgb.extend([0, 0, 0])
+                    total_count = count
+
                 canvas = compact_canvas_from_rgb(width, height, bytes(rgb))
                 result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "count": count, **result, "status": STATE.session.status()})
+                json_response(self, 200, {"ok": True, "count": total_count, **result, "status": STATE.session.status()})
             elif self.path == "/api/observe":
                 row = {"time": time.time(), **body}
                 with OBS_PATH.open("a", encoding="utf-8") as handle:

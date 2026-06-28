@@ -16,6 +16,7 @@ const gpuBarEl = document.querySelector("#gpuBar");
 const gpuTextEl = document.querySelector("#gpuText");
 const systemIntervalEl = document.querySelector("#systemInterval");
 const inputNumberEl = document.querySelector("#inputNumber");
+const inputNumberColorEl = document.querySelector("#inputNumberColor");
 const wordleHtmlEl = document.querySelector("#wordleHtml");
 const wordleInputs = [1, 2, 3, 4, 5, 6].map((n) => document.querySelector(`#wordle${n}`));
 const wordleBookmarkletEl = document.querySelector("#wordleBookmarklet");
@@ -71,6 +72,15 @@ function percentLabel(value) {
   return `${value.toFixed(0)}%`;
 }
 
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 255, g: 255, b: 255 };
+}
+
 function displayToWirePixel(pixel) {
   return [pixel[2], pixel[1], pixel[0]];
 }
@@ -123,10 +133,10 @@ function fillFirstCount(count, rgb, fromTop = false) {
   renderGrid();
 }
 
-function buildInputNumberCanvas(count) {
+function buildInputNumberCanvas(count, r, g, b) {
   const ledCount = Math.max(0, Math.min(144, Number(count) || 0));
-  fillFirstCount(ledCount, [255, 255, 255], true);  // fromTop = true
-  previewEl.textContent = `input number\nleds=${ledCount}\ndisplay rgb=(255,255,255)`;
+  fillFirstCount(ledCount, [r, g, b], true);  // fromTop = true
+  previewEl.textContent = `input number\nleds=${ledCount}\ndisplay rgb=(${r},${g},${b})`;
 }
 
 function buildAuroraCanvas(statusId) {
@@ -399,15 +409,17 @@ async function sendManualAurora() {
 
 function previewInputNumber() {
   const count = Number(inputNumberEl.value) || 0;
-  buildInputNumberCanvas(count);
-  addLog(`input number ${count}`);
+  const color = hexToRgb(inputNumberColorEl.value);
+  buildInputNumberCanvas(count, color.r, color.g, color.b);
+  addLog(`input number ${count} rgb(${color.r},${color.g},${color.b})`);
 }
 
 async function sendInputNumber() {
   const count = Number(inputNumberEl.value) || 0;
-  const result = await api("/api/send-number", { count, startIfNeeded: false });
+  const color = hexToRgb(inputNumberColorEl.value);
+  const result = await api("/api/send-number", { count, r: color.r, g: color.g, b: color.b, startIfNeeded: false });
   previewInputNumber();
-  addLog(`sent input number ${count}, ${result.canvasBytes} bytes`);
+  addLog(`sent input number ${count} rgb(${color.r},${color.g},${color.b}), ${result.canvasBytes} bytes`);
   await refreshStatus();
 }
 
