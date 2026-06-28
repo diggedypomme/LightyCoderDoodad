@@ -402,14 +402,16 @@ pre {
 }
 
 .danger-action,
-#disconnect {
+#disconnect,
+#reconnect {
   background: #fff0f0;
   border-color: #d58a8a;
   color: #6d1515;
 }
 
 [data-theme="dark"] .danger-action,
-[data-theme="dark"] #disconnect {
+[data-theme="dark"] #disconnect,
+[data-theme="dark"] #reconnect {
   background: #3a1a1a;
   border-color: #7a3a3a;
   color: #ffb3b3;

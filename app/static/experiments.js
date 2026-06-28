@@ -503,36 +503,49 @@ async function fetchTemperature() {
     throw new Error("API URL is required");
   }
 
-  // Fetch via backend proxy to avoid CORS issues
+  // Fetch via backend proxy to avoid CORS issues with timeout
   const proxyUrl = `/api/fetch-temperature?url=${encodeURIComponent(url)}`;
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+  try {
+    const response = await fetch(proxyUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const proxyResult = await response.json();
+    if (!proxyResult.ok) {
+      throw new Error(proxyResult.error || "Failed to fetch temperature");
+    }
+    const data = proxyResult.data;
+
+    const chartTemp = Number(data.chart_temp) || 0;
+    const roundedTemp = Math.round(chartTemp);
+    const color = hexToRgb(tempColorEl.value);
+
+    // Display info
+    tempInfoEl.textContent = `chart_temp: ${chartTemp}°C\nrounded: ${roundedTemp}°C\nrelay: ${data.relay ? 'ON' : 'OFF'}\nstatus: ${data.fault_text || 'N/A'}`;
+
+    // Send to LED display
+    const displayResult = await api("/api/display-number", {
+      number: roundedTemp,
+      r: color.r,
+      g: color.g,
+      b: color.b,
+      startIfNeeded: false
+    });
+
+    addLog(`temp ${roundedTemp}°C (actual: ${chartTemp}°C)`);
+    return { temp: roundedTemp, chartTemp, data };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout after 15 seconds');
+    }
+    throw error;
   }
-  const proxyResult = await response.json();
-  if (!proxyResult.ok) {
-    throw new Error(proxyResult.error || "Failed to fetch temperature");
-  }
-  const data = proxyResult.data;
-
-  const chartTemp = Number(data.chart_temp) || 0;
-  const roundedTemp = Math.round(chartTemp);
-  const color = hexToRgb(tempColorEl.value);
-
-  // Display info
-  tempInfoEl.textContent = `chart_temp: ${chartTemp}°C\nrounded: ${roundedTemp}°C\nrelay: ${data.relay ? 'ON' : 'OFF'}\nstatus: ${data.fault_text || 'N/A'}`;
-
-  // Send to LED display
-  const displayResult = await api("/api/display-number", {
-    number: roundedTemp,
-    r: color.r,
-    g: color.g,
-    b: color.b,
-    startIfNeeded: false
-  });
-
-  addLog(`temp ${roundedTemp}°C (actual: ${chartTemp}°C)`);
-  return { temp: roundedTemp, chartTemp, data };
 }
 
 function toggleTempAuto() {
@@ -548,21 +561,28 @@ function toggleTempAuto() {
   const intervalSeconds = Math.max(0.5, Number(tempIntervalEl.value) || 5);
   const intervalMs = intervalSeconds * 1000;
 
-  fetchTemperature().catch((err) => {
-    addLog(`temp error: ${err.message}`);
-    clearInterval(autoTempTimer);
-    autoTempTimer = null;
-    button.textContent = "Start Auto";
-  });
+  let consecutiveErrors = 0;
+  const maxErrors = 3;
 
-  autoTempTimer = setInterval(() => {
-    fetchTemperature().catch((err) => {
-      addLog(`temp error: ${err.message}`);
-      clearInterval(autoTempTimer);
-      autoTempTimer = null;
-      button.textContent = "Start Auto";
-    });
-  }, intervalMs);
+  const doFetch = async () => {
+    try {
+      await fetchTemperature();
+      consecutiveErrors = 0; // Reset on success
+    } catch (err) {
+      consecutiveErrors++;
+      addLog(`temp error (${consecutiveErrors}/${maxErrors}): ${err.message}`);
+      if (consecutiveErrors >= maxErrors) {
+        addLog(`stopping auto temperature after ${maxErrors} consecutive errors`);
+        clearInterval(autoTempTimer);
+        autoTempTimer = null;
+        button.textContent = "Start Auto";
+      }
+    }
+  };
+
+  doFetch(); // Initial fetch
+
+  autoTempTimer = setInterval(doFetch, intervalMs);
 
   button.textContent = "Stop Auto";
   addLog(`started auto temperature every ${intervalSeconds} sec`);
@@ -634,6 +654,12 @@ function toggleSystemAuto() {
 document.querySelector("#connect").addEventListener("click", async () => {
   await api("/api/connect", {});
   addLog("connected");
+  await refreshStatus();
+});
+document.querySelector("#reconnect").addEventListener("click", async () => {
+  addLog("reconnecting...");
+  await api("/api/reconnect", {});
+  addLog("reconnected");
   await refreshStatus();
 });
 document.querySelector("#startPaint").addEventListener("click", async () => {

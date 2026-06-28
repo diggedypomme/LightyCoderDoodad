@@ -26,16 +26,26 @@ const SWATCHES = [
   ["magenta", 255, 0, 255],
 ];
 
-async function api(path, body = null) {
+async function api(path, body = null, timeoutMs = 9000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const opts = body ? {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  } : {};
-  const res = await fetch(path, opts);
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
-  return data;
+    signal: controller.signal,
+  } : { signal: controller.signal };
+  try {
+    const res = await fetch(path, opts);
+    const data = await res.json();
+    if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+    return data;
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error(`request timed out: ${path}`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function addLog(text) {
@@ -275,13 +285,20 @@ function clearSelection(log = true) {
 }
 
 document.querySelector("#connect").addEventListener("click", async () => {
-  await api("/api/connect", {});
+  await api("/api/connect", {}, 14000);
   addLog("connected");
   await refreshStatus();
 });
 
+document.querySelector("#reconnect").addEventListener("click", async () => {
+  addLog("reconnecting...");
+  await api("/api/reconnect", {}, 14000);
+  addLog("reconnected");
+  await refreshStatus();
+});
+
 document.querySelector("#startPaint").addEventListener("click", async () => {
-  await api("/api/start-paint", {});
+  await api("/api/start-paint", {}, 11000);
   addLog("sent start paint");
   await refreshStatus();
 });

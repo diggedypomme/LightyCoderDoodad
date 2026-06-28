@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Webcam</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .webcam-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
+      .webcam-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr); gap: 16px; align-items: start; }
+      .camera-wrap { background: var(--bg-code); border: 1px solid var(--border-main); border-radius: 8px; padding: 10px; overflow: hidden; }
+      #cameraVideo, #sourceCanvas { display: block; width: 100%; max-width: 520px; aspect-ratio: 1; object-fit: cover; background: #111; border-radius: 6px; }
+      #sourceCanvas { image-rendering: pixelated; }
+      .webcam-grid .cell { font-size: 10px; }
+      .webcam-grid .cell.lit { color: #111; border-color: #111; font-weight: 700; }
+      .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .control-grid label { margin: 0; }
+      .preview { min-height: 150px; }
+      @media (max-width: 1000px) { .webcam-layout, .webcam-workspace { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Webcam <span class="project-name">LightyCoderDoodad</span></h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="darkModeToggle" title="Toggle dark mode">Mode</button>
+          <button id="connect" class="primary-action">Connect</button>
+          <button id="reconnect" class="danger-action">Reconnect</button>
+          <button id="startPaint" class="secondary-action">Start Paint</button>
+          <a class="button-link" href="/">Pixel Grid</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+          <span class="button-link current-page">Webcam</span>
+          <a class="button-link" href="/onboard.html">Onboard</a>
+          <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
+        </div>
+      </header>
+
+      <section class="webcam-layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Camera</h2>
+              <div class="toolbar">
+                <button id="startCamera">Start Camera</button>
+                <button id="stopCamera">Stop Camera</button>
+                <button id="sendFrame">Send Frame</button>
+                <button id="play">Play</button>
+                <button id="stop">Stop</button>
+              </div>
+            </div>
+            <div class="webcam-workspace">
+              <div class="camera-wrap">
+                <video id="cameraVideo" playsinline muted autoplay></video>
+              </div>
+              <div>
+                <canvas id="sourceCanvas" width="360" height="360"></canvas>
+                <div class="control-grid">
+                  <label>Camera<select id="cameraSelect"></select></label>
+                  <label>FPS<input id="fps" type="number" min="1" max="15" step="1" value="4"></label>
+                  <label>Zoom<input id="zoom" type="range" min="1" max="4" step="0.01" value="1"></label>
+                  <label>Brightness<input id="brightness" type="range" min="0" max="2" step="0.01" value="1"></label>
+                  <label>Contrast<input id="contrast" type="range" min="0" max="2" step="0.01" value="1"></label>
+                  <label>Saturation<input id="saturation" type="range" min="0" max="2" step="0.01" value="1"></label>
+                  <label>Mirror<select id="mirror"><option value="on">on</option><option value="off">off</option></select></label>
+                  <label>Dither<select id="dither"><option value="none">none</option><option value="threshold">threshold-ish</option></select></label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>12x12 Preview</h2>
+            <div id="grid" class="grid webcam-grid"></div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Last Frame</h2>
+            <pre id="preview" class="preview"></pre>
+          </div>
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script>
+      const darkModeToggle = document.getElementById("darkModeToggle");
+      const html = document.documentElement;
+      const savedTheme = localStorage.getItem("theme") || "light";
+      html.setAttribute("data-theme", savedTheme);
+      darkModeToggle.addEventListener("click", () => {
+        const currentTheme = html.getAttribute("data-theme");
+        const newTheme = currentTheme === "dark" ? "light" : "dark";
+        html.setAttribute("data-theme", newTheme);
+        localStorage.setItem("theme", newTheme);
+      });
+    </script>
+    <script src="/webcam.js"></script>
+  </body>
+</html>

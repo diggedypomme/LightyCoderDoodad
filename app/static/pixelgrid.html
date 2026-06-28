@@ -27,13 +27,15 @@
           <p id="status">Loading...</p>
         </div>
         <div class="toolbar">
-          <button id="darkModeToggle" title="Toggle dark mode">◐</button>
+          <button id="darkModeToggle" title="Toggle dark mode">Mode</button>
           <button id="connect">Connect</button>
+          <button id="reconnect">Reconnect</button>
           <button id="startPaint">Start Paint</button>
           <span class="button-link current-page">Pixel Grid</span>
           <a class="button-link" href="/experiments.html">Experiments</a>
           <a class="button-link" href="/animations.html">Animations</a>
           <a class="button-link" href="/images.html">Images</a>
+          <a class="button-link" href="/webcam.html">Webcam</a>
           <a class="button-link" href="/onboard.html">Onboard</a>
           <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
         </div>
@@ -98,7 +100,7 @@
       const html = document.documentElement;
       const savedTheme = localStorage.getItem('theme') || 'light';
       html.setAttribute('data-theme', savedTheme);
-      darkModeToggle.textContent = '◐';
+      darkModeToggle.textContent = "Mode";
 
       darkModeToggle.addEventListener('click', () => {
         const currentTheme = html.getAttribute('data-theme');

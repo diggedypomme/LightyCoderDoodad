@@ -478,6 +478,7 @@ class BleSession:
         self.started_paint = False
         self.last_notify: str | None = None
         self.log: list[str] = []
+        self.write_lock = asyncio.Lock()
 
     def add_log(self, message: str) -> None:
         line = f"[{time.strftime('%H:%M:%S')}] {message}"
@@ -503,27 +504,47 @@ class BleSession:
         self.add_log(f"connecting to {self.address}")
         self.client = BleakClient(self.address)
         await self.client.connect()
+        # Wait for service discovery to complete
+        await asyncio.sleep(1.5)
         await self.client.start_notify(CALLBACK_CHAR, self.on_notify)
         self.add_log("connected and subscribed")
 
     async def write_with_retry(self, characteristic: str, data: bytes, response: bool = False) -> None:
         """Write to GATT characteristic with automatic reconnect on COM errors."""
-        assert self.client is not None
-        try:
-            await self.client.write_gatt_char(characteristic, data, response=response)
-        except OSError as exc:
-            # Windows COM error - try reconnecting once
-            self.add_log(f"write failed ({exc}), reconnecting and retrying")
-            self.client = None
+        async with self.write_lock:
             await self.ensure_connected()
             assert self.client is not None
-            await self.client.write_gatt_char(characteristic, data, response=response)
+            try:
+                await asyncio.wait_for(self.client.write_gatt_char(characteristic, data, response=response), timeout=6)
+            except Exception as exc:
+                exc_str = str(exc)
+                if "Service Discovery" in exc_str or "COM error" in exc_str or isinstance(exc, (OSError, asyncio.TimeoutError)):
+                    self.add_log(f"write failed ({exc}), reconnecting and retrying")
+                    self.client = None
+                    await self.ensure_connected()
+                    assert self.client is not None
+                    await asyncio.wait_for(self.client.write_gatt_char(characteristic, data, response=response), timeout=6)
+                else:
+                    raise
 
     async def disconnect(self) -> None:
-        if self.client and self.client.is_connected:
-            await self.client.disconnect()
+        if self.client:
+            try:
+                if self.client.is_connected:
+                    await self.client.disconnect()
+            except Exception as e:
+                self.add_log(f"disconnect error (ignoring): {e}")
+        self.client = None
         self.started_paint = False
         self.add_log("disconnected")
+
+    async def reconnect(self) -> None:
+        """Force disconnect and reconnect."""
+        self.add_log("reconnecting...")
+        await self.disconnect()
+        await asyncio.sleep(0.5)  # Brief pause between disconnect and reconnect
+        await self.ensure_connected()
+        self.add_log("reconnect complete")
 
     async def start_builtin(self, module_name: str) -> None:
         await self.ensure_connected()
@@ -775,6 +796,9 @@ class Handler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"ok": True, "status": STATE.session.status()})
             elif self.path == "/api/disconnect":
                 STATE.run(STATE.session.disconnect())
+                json_response(self, 200, STATE.session.status())
+            elif self.path == "/api/reconnect":
+                STATE.run(STATE.session.reconnect())
                 json_response(self, 200, STATE.session.status())
             elif self.path == "/api/start-paint":
                 STATE.run(STATE.session.start_paint())
