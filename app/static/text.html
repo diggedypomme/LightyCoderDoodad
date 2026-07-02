@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paint Text</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .text-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
+      .text-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr); gap: 16px; align-items: start; }
+      .source-wrap { background: var(--bg-code); border: 1px solid var(--border-main); border-radius: 8px; padding: 10px; overflow: hidden; }
+      #sourceCanvas { display: block; width: 100%; max-width: 520px; aspect-ratio: 1; background: #05070a; border-radius: 6px; image-rendering: pixelated; }
+      .text-grid .cell { font-size: 10px; }
+      .text-grid .cell.lit { color: #111; border-color: #111; font-weight: 700; }
+      .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .control-grid label { margin: 0; }
+      .preview { min-height: 150px; }
+      @media (max-width: 1000px) { .text-layout, .text-workspace { display: block; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Paint Text <span class="project-name">LightyCoderDoodad</span></h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="darkModeToggle" title="Toggle dark mode">Mode</button>
+          <button id="connect" class="primary-action">Connect</button>
+          <button id="reconnect" class="danger-action">Reconnect</button>
+          <button id="startPaint" class="secondary-action">Start Paint</button>
+          <a class="button-link" href="/">Pixel Grid</a>
+          <a class="button-link" href="/experiments.html">Experiments</a>
+          <a class="button-link" href="/animations.html">Animations</a>
+          <a class="button-link" href="/images.html">Images</a>
+          <a class="button-link" href="/webcam.html">Webcam</a>
+          <span class="button-link current-page">Text</span>
+          <a class="button-link" href="/onboard.html">Onboard</a>
+          <a class="button-link" href="https://github.com/diggedypomme/LightyCoderDoodad/" target="_blank">GitHub</a>
+        </div>
+      </header>
+
+      <section class="text-layout">
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Bitmap Text</h2>
+              <div class="toolbar">
+                <button id="sendText">Send Text</button>
+                <button id="clearText">Clear</button>
+              </div>
+            </div>
+            <div class="text-workspace">
+              <div class="source-wrap">
+                <canvas id="sourceCanvas" width="360" height="360"></canvas>
+              </div>
+              <div>
+                <label>Text<textarea id="textInput" maxlength="96" rows="4" spellcheck="false">Hello
+World</textarea></label>
+                <div class="control-grid">
+                  <label>Case<select id="caseMode"><option value="as-is">as typed</option><option value="upper">UPPER</option><option value="lower">lower</option><option value="title">Title</option></select></label>
+                  <label>Colour<input id="textColor" type="color" value="#ff7a20"></label>
+                  <label>Background<input id="bgColor" type="color" value="#000000"></label>
+                  <label>Scale<select id="scale"><option value="1">1x</option><option value="2">2x</option></select></label>
+                  <label>X<input id="offsetX" type="range" min="-64" max="12" step="1" value="0"></label>
+                  <label>Y adjust<input id="offsetY" type="range" min="-8" max="8" step="1" value="0"></label>
+                  <label>Spacing<input id="spacing" type="range" min="0" max="3" step="1" value="1"></label>
+                  <label>Line gap<input id="lineSpacing" type="range" min="0" max="4" step="1" value="1"></label>
+                  <label>Variant<select id="variant"><option value="compact">compact 3x5</option><option value="wide">wide accents</option></select></label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>12x12 Preview</h2>
+            <div id="grid" class="grid text-grid"></div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Last Text</h2>
+            <pre id="preview" class="preview"></pre>
+          </div>
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="log"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script>
+      const darkModeToggle = document.getElementById("darkModeToggle");
+      const html = document.documentElement;
+      const savedTheme = localStorage.getItem("theme") || "light";
+      html.setAttribute("data-theme", savedTheme);
+      darkModeToggle.addEventListener("click", () => {
+        const currentTheme = html.getAttribute("data-theme");
+        const newTheme = currentTheme === "dark" ? "light" : "dark";
+        html.setAttribute("data-theme", newTheme);
+        localStorage.setItem("theme", newTheme);
+      });
+    </script>
+    <script src="/text.js"></script>
+  </body>
+</html>
