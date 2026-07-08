@@ -51,7 +51,13 @@ If you need UART logging later, run `venv/bin/python app/server_live.py --host 0
 
 ### Linux Connect Troubleshooting
 
-If scan sees the Arcade Coder but connect fails, clear any stale BlueZ device state and power-cycle the board:
+If scan sees the Arcade Coder but connect fails, first check whether BlueZ can connect outside the app:
+
+```sh
+bluetoothctl connect 24:0A:C4:4C:E8:E6
+```
+
+If that also times out or fails, clear any stale BlueZ device state and power-cycle the board:
 
 ```sh
 bluetoothctl remove 24:0A:C4:4C:E8:E6

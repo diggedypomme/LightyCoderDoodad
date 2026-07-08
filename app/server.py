@@ -552,7 +552,9 @@ def compact_canvas_command(canvas: bytes) -> bytes:
 RADIO_LOCK = asyncio.Lock()
 
 CONNECT_COOLDOWN_SECONDS = 8.0
-CONNECT_TIMEOUT_SECONDS = 20.0
+CONNECT_TIMEOUT_SECONDS = float(
+    os.environ.get("LIGHTY_CODER_CONNECT_TIMEOUT") or (60.0 if sys.platform.startswith("linux") else 20.0)
+)
 
 
 class BleSession:
@@ -627,7 +629,7 @@ class BleSession:
                     f"not connected to {self.address}; last connect attempt failed, retry allowed in {remaining:.0f}s"
                 )
             await self._dispose_client()
-            self.add_log(f"connecting to {self.address}")
+            self.add_log(f"connecting to {self.address} with timeout {CONNECT_TIMEOUT_SECONDS:.0f}s")
             target = await self._connect_target()
             if target is not self.address:
                 self.add_log("using scanned BLE device details for connect")
