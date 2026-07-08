@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Windows 10/11 with Bluetooth support.
+- Windows 10/11 with Bluetooth support, or Raspberry Pi OS/Linux with BlueZ Bluetooth support.
 - Python 3.11 or newer.
 - A Tech Will Save Us Arcade Coder powered on and advertising over BLE.
 
@@ -12,6 +12,27 @@
 python -m venv venv
 venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+## Raspberry Pi / Linux
+
+Bleak is cross-platform and uses BlueZ on Linux, so it is not Windows-only. On Raspberry Pi OS, install the OS Bluetooth pieces first:
+
+```sh
+sudo apt update
+sudo apt install -y bluetooth bluez python3-venv
+sudo systemctl enable --now bluetooth
+```
+
+Then create the venv with Linux paths:
+
+```sh
+python3 -m venv venv
+venv/bin/python -m pip install -r requirements.txt
+venv/bin/python scripts/scan_devices.py --save-first-likely
+venv/bin/python app/server.py --host 0.0.0.0
+```
+
+Open `http://<pi-hostname-or-ip>:8765/` from another device on the same network. If you need UART logging, use `app/server_live.py`; its default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
 
 ## Pick your device
 

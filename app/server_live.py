@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import threading
 from http.server import ThreadingHTTPServer
 
@@ -55,7 +56,8 @@ def main() -> None:
     parser.add_argument("--address", default=base.DEFAULT_ADDRESS)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--uart-port", default="COM3")
+    default_uart = "COM3" if sys.platform.startswith("win") else "/dev/serial0"
+    parser.add_argument("--uart-port", default=default_uart)
     parser.add_argument("--uart-baud", type=int, default=230400)
     parser.add_argument("--no-uart", action="store_true")
     args = parser.parse_args()

@@ -84,7 +84,7 @@ AURORA_STATUS_URLS = [
     "http://aurorawatch-api.lancs.ac.uk/0.2/current-status.xml",
 ]
 
-CPU_SAMPLE: tuple[int, int, int] | None = None
+CPU_SAMPLE: tuple[int, int] | None = None
 NET_SAMPLE: tuple[float, int, int] | None = None
 NETWORK_BASE_MBPS = 500.0
 
@@ -133,7 +133,6 @@ def spaced_hex(data: bytes) -> str:
 
 def decimal_bytes(data: bytes) -> str:
     return " ".join(str(byte) for byte in data)
-
 
 
 def deflate_raw(data: bytes, level: int = 9) -> bytes:
@@ -252,7 +251,6 @@ def single_pixel_canvas(x: int, y: int, r: int, g: int, b: int) -> bytes:
     return compact_canvas_from_rgb(12, 12, bytes(rgb))
 
 
-
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
@@ -299,13 +297,31 @@ def _filetime_to_int(value: FILETIME) -> int:
     return (value.dwHighDateTime << 32) | value.dwLowDateTime
 
 
-def _read_cpu_times() -> tuple[int, int, int]:
+def _read_windows_cpu_times() -> tuple[int, int]:
     idle = FILETIME()
     kernel = FILETIME()
     user = FILETIME()
     if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
         raise OSError("GetSystemTimes failed")
-    return (_filetime_to_int(idle), _filetime_to_int(kernel), _filetime_to_int(user))
+    return (_filetime_to_int(idle), _filetime_to_int(kernel) + _filetime_to_int(user))
+
+
+def _read_linux_cpu_times() -> tuple[int, int]:
+    first_line = Path("/proc/stat").read_text(encoding="utf-8").splitlines()[0]
+    parts = [int(part) for part in first_line.split()[1:]]
+    idle = parts[3] + (parts[4] if len(parts) > 4 else 0)
+    total = sum(parts)
+    return (idle, total)
+
+
+def _read_cpu_times() -> tuple[int, int]:
+    if sys.platform.startswith("win"):
+        idle, total = _read_windows_cpu_times()
+    elif sys.platform.startswith("linux"):
+        idle, total = _read_linux_cpu_times()
+    else:
+        raise OSError(f"system stats are not supported on {sys.platform}")
+    return (idle, total)
 
 
 class MEMORYSTATUSEX(ctypes.Structure):
@@ -322,8 +338,20 @@ class MEMORYSTATUSEX(ctypes.Structure):
     ]
 
 
-
 def _read_network_totals() -> tuple[int, int]:
+    if sys.platform.startswith("linux"):
+        rx_total = 0
+        tx_total = 0
+        for line in Path("/proc/net/dev").read_text(encoding="utf-8").splitlines()[2:]:
+            if ":" not in line:
+                continue
+            _iface, values = line.split(":", 1)
+            parts = values.split()
+            if len(parts) >= 16:
+                rx_total += int(parts[0])
+                tx_total += int(parts[8])
+        return (rx_total, tx_total)
+
     proc = subprocess.run(["netstat", "-e"], capture_output=True, text=True, timeout=8, check=True)
     for line in proc.stdout.splitlines():
         parts = line.split()
@@ -406,6 +434,9 @@ def _gpu_stats() -> dict[str, object]:
     except Exception:
         pass
 
+    if not sys.platform.startswith("win"):
+        return result
+
     try:
         script = "$gpu=(Get-Counter '\\GPU Engine(*)\\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples | Measure-Object -Property CookedValue -Sum; $mem=(Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage' -ErrorAction SilentlyContinue).CounterSamples | Measure-Object -Property CookedValue -Sum; @{gpu=[double]$gpu.Sum; vramBytes=[double]$mem.Sum} | ConvertTo-Json -Compress"
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, text=True, timeout=10, check=True)
@@ -420,31 +451,61 @@ def _gpu_stats() -> dict[str, object]:
     return result
 
 
+def _read_windows_memory_stats() -> dict[str, object]:
+    mem = MEMORYSTATUSEX()
+    mem.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem)):
+        raise OSError("GlobalMemoryStatusEx failed")
+    return {
+        "memoryPercent": float(mem.dwMemoryLoad),
+        "memoryUsedBytes": int(mem.ullTotalPhys - mem.ullAvailPhys),
+        "memoryTotalBytes": int(mem.ullTotalPhys),
+    }
+
+
+def _read_linux_memory_stats() -> dict[str, object]:
+    values: dict[str, int] = {}
+    for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+        key, raw_value = line.split(":", 1)
+        parts = raw_value.split()
+        if parts:
+            values[key] = int(parts[0]) * 1024
+    total = values["MemTotal"]
+    available = values.get("MemAvailable", values.get("MemFree", 0))
+    used = max(0, total - available)
+    return {
+        "memoryPercent": used / total * 100.0 if total else None,
+        "memoryUsedBytes": used,
+        "memoryTotalBytes": total,
+    }
+
+
+def _read_memory_stats() -> dict[str, object]:
+    if sys.platform.startswith("win"):
+        return _read_windows_memory_stats()
+    if sys.platform.startswith("linux"):
+        return _read_linux_memory_stats()
+    raise OSError(f"memory stats are not supported on {sys.platform}")
+
+
 def read_system_stats() -> dict[str, object]:
     global CPU_SAMPLE
     cpu_now = _read_cpu_times()
     cpu_percent: float | None = None
     if CPU_SAMPLE is not None:
         idle_delta = cpu_now[0] - CPU_SAMPLE[0]
-        kernel_delta = cpu_now[1] - CPU_SAMPLE[1]
-        user_delta = cpu_now[2] - CPU_SAMPLE[2]
-        total_delta = kernel_delta + user_delta
+        total_delta = cpu_now[1] - CPU_SAMPLE[1]
         if total_delta > 0:
             cpu_percent = max(0.0, min(100.0, 100.0 * (1.0 - idle_delta / total_delta)))
     CPU_SAMPLE = cpu_now
 
-    mem = MEMORYSTATUSEX()
-    mem.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem)):
-        raise OSError("GlobalMemoryStatusEx failed")
+    memory = _read_memory_stats()
     network = _network_rates()
     gpu = _gpu_stats()
     return {
         "ok": True,
         "cpuPercent": cpu_percent,
-        "memoryPercent": float(mem.dwMemoryLoad),
-        "memoryUsedBytes": int(mem.ullTotalPhys - mem.ullAvailPhys),
-        "memoryTotalBytes": int(mem.ullTotalPhys),
+        **memory,
         **network,
         **gpu,
     }
@@ -717,7 +778,6 @@ def read_json(handler: BaseHTTPRequestHandler) -> dict[str, object]:
     if length == 0:
         return {}
     return json.loads(handler.rfile.read(length).decode("utf-8"))
-
 
 
 def _markdown_inline(text: str) -> str:
