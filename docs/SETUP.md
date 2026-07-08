@@ -49,6 +49,25 @@ sh scripts/run_linux.sh --port 8766
 
 If you need UART logging later, run `venv/bin/python app/server_live.py --host 0.0.0.0` directly; the default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
 
+### Raspberry Pi Bluetooth UART Check
+
+On Raspberry Pi 4, onboard Bluetooth uses UART. If BLE scan works but connect fails with `le-connection-abort-by-local`, check that the controller has a real address and that UART is enabled:
+
+```sh
+hciconfig -a
+grep -R "enable_uart" /boot/config.txt /boot/firmware/config.txt 2>/dev/null
+```
+
+If `hciconfig` shows `BD Address: AA:AA:AA:AA:AA:AA` or `hciuart` cannot open its serial port, set `enable_uart=1` in the active boot config and reboot:
+
+```sh
+sed -i 's/^enable_uart=0/enable_uart=1/' /boot/config.txt
+sed -i 's/^enable_uart=0/enable_uart=1/' /boot/firmware/config.txt
+reboot
+```
+
+After reboot, `hciconfig -a` should show a real Bluetooth address.
+
 ### Linux Connect Troubleshooting
 
 If scan sees the Arcade Coder but connect fails, test outside the web app first:
@@ -63,10 +82,16 @@ If that connects, try the write path too:
 venv/bin/python scripts/ble_diagnose.py --list-services --start-paint
 ```
 
-If the diagnostic also times out, check whether BlueZ can connect outside Python:
+If the diagnostic also times out, check whether BlueZ can connect outside Python. `bluetoothctl` needs its own scan before `connect`; a Bleak scan does not populate the `bluetoothctl` device cache.
 
 ```sh
-bluetoothctl connect 24:0A:C4:4C:E8:E6
+bluetoothctl
+power on
+scan on
+# wait until 24:0A:C4:4C:E8:E6 appears
+scan off
+connect 24:0A:C4:4C:E8:E6
+quit
 ```
 
 If that also times out or fails, clear any stale BlueZ device state and power-cycle the board:

@@ -64,7 +64,15 @@ async def main() -> None:
     client = BleakClient(target)
     try:
         log(f"connecting with timeout {args.connect_timeout:.0f}s")
-        await asyncio.wait_for(client.connect(), timeout=args.connect_timeout)
+        try:
+            await asyncio.wait_for(client.connect(), timeout=args.connect_timeout)
+        except asyncio.TimeoutError:
+            log("connect timed out in Bleak/BlueZ")
+            log("next test: run bluetoothctl, scan on, wait for this address, then connect")
+            raise SystemExit(2)
+        except Exception as exc:
+            log(f"connect failed: {type(exc).__name__}: {exc}")
+            raise SystemExit(2)
         log(f"connected: {client.is_connected}")
 
         if args.list_services:
