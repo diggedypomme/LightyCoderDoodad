@@ -51,7 +51,19 @@ If you need UART logging later, run `venv/bin/python app/server_live.py --host 0
 
 ### Linux Connect Troubleshooting
 
-If scan sees the Arcade Coder but connect fails, first check whether BlueZ can connect outside the app:
+If scan sees the Arcade Coder but connect fails, test outside the web app first:
+
+```sh
+venv/bin/python scripts/ble_diagnose.py --list-services
+```
+
+If that connects, try the write path too:
+
+```sh
+venv/bin/python scripts/ble_diagnose.py --list-services --start-paint
+```
+
+If the diagnostic also times out, check whether BlueZ can connect outside Python:
 
 ```sh
 bluetoothctl connect 24:0A:C4:4C:E8:E6
