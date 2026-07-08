@@ -6,6 +6,7 @@ const scriptEl = document.querySelector("#script");
 const exampleEl = document.querySelector("#example");
 const fpsEl = document.querySelector("#fps");
 const frameNoEl = document.querySelector("#frameNo");
+const deviceSelEl = document.querySelector("#deviceSel");
 
 const W = 12;
 const H = 12;
@@ -14,6 +15,8 @@ const cells = [];
 let timer = null;
 let frame = 0;
 let autoSkipTimer = null;
+let animState = {};
+let prevPixels = pixels.map(() => [0, 0, 0]);
 
 const EXAMPLES = {
   "pet blink": `// Tiny pet face. Blinks every 8 frames.
@@ -81,38 +84,52 @@ for (let n = 0; n < 18; n++) {
   const y = (i + n * 4) % H;
   set(x, y, 220, 240, 255);
 }`,
-  "sparkle": `// Deterministic sparkle field.
-for (let n = 0; n < 18; n++) {
-  const x = (n * 7 + i * 3) % W;
-  const y = (n * 5 + i * 2) % H;
-  const v = ((n * 31 + i * 17) % 100) / 100;
-  set(x, y, 255 * v, 255 * v, 255 * v);
+  "sparkle": `// Twinkling stars that flare and slowly fade out.
+fade(0.8);
+for (let n = 0; n < 2; n++) {
+  if (rand(1) < 0.7) {
+    const warm = rand(1) < 0.35;
+    set(Math.floor(rand(W)), Math.floor(rand(H)), 255, warm ? 190 : 245, warm ? 110 : 255);
+  }
 }`,
   "heart pulse": `// Heart shape with pulsing brightness.
 const pts = [[3,3],[4,2],[5,2],[6,3],[7,2],[8,2],[9,3],[2,4],[10,4],[2,5],[10,5],[3,6],[9,6],[4,7],[8,7],[5,8],[7,8],[6,9]];
 const v = 0.45 + 0.55 * Math.abs(Math.sin(i / 3));
 for (const [x,y] of pts) set(x, y, 255 * v, 20 * v, 60 * v);`,
-  "fire": `// Chunky fake fire.
+  "fire": `// Fire sim: heat rises from embers and cools as it climbs.
+if (!state.heat) state.heat = new Array(W * H).fill(0);
+const heat = state.heat;
+for (let x = 0; x < W; x++) heat[(H - 1) * W + x] = 140 + rand(115);
+heat[(H - 1) * W + Math.floor(rand(W))] = 255;
+for (let y = 0; y < H - 1; y++) {
+  for (let x = 0; x < W; x++) {
+    const sx = Math.max(0, Math.min(W - 1, x + Math.floor(rand(3)) - 1));
+    heat[y * W + x] = Math.max(0, heat[(y + 1) * W + sx] - 6 - rand(26));
+  }
+}
 for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) {
-    const heat = Math.max(0, 1 - y / H) * (((x * 17 + i * 13 + y * 9) % 12) / 12);
-    if (heat > 0.18) set(x, H - 1 - y, 255, 150 * heat, 20 * heat);
+    const h = heat[y * W + x];
+    if (h > 15) set(x, y, Math.min(255, h * 1.7), Math.max(0, (h - 80) * 1.6), Math.max(0, (h - 190) * 3));
   }
 }`,
-  "matrix rain": `// Green digital rain.
+  "matrix rain": `// Digital rain with varied column speeds and glowing trails.
+fade(0.6);
+if (!state.cols) state.cols = Array.from({ length: W }, () => ({ y: rand(H), sp: 0.35 + rand(0.85) }));
 for (let x = 0; x < W; x++) {
-  const head = (i + x * 4) % H;
-  set(x, head, 180, 255, 180);
-  set(x, (head + H - 1) % H, 0, 180, 40);
-  set(x, (head + H - 2) % H, 0, 70, 20);
+  const c = state.cols[x];
+  c.y += c.sp;
+  if (c.y > H + 4) { c.y = -rand(8); c.sp = 0.35 + rand(0.85); }
+  set(x, c.y, 190, 255, 190);
+  set(x, c.y - 1, 0, 200, 60);
 }`,
-  "comet": `// Orbiting comet.
-const pts = [[1,5],[2,3],[4,2],[7,2],[9,3],[10,5],[9,8],[7,9],[4,9],[2,8]];
-for (let n = 0; n < pts.length; n++) {
-  const [x,y] = pts[(i - n + pts.length * 10) % pts.length];
-  const v = Math.max(0, 1 - n / 6);
-  set(x, y, 80 * v, 180 * v, 255 * v);
-}`,
+  "comet": `// Comet on a lissajous orbit, tail from fading afterglow.
+fade(0.7);
+const x = 5.5 + Math.cos(i / 4) * 4.8;
+const y = 5.5 + Math.sin(i / 2.6) * 4.4;
+set(x, y, 255, 255, 255);
+set(x + 0.8, y, 120, 190, 255);
+set(x, y + 0.8, 120, 190, 255);`,
   "spinner": `// Loading spinner.
 const arms = [[6,2],[8,3],[10,5],[9,8],[6,10],[3,9],[2,6],[3,3]];
 for (let n = 0; n < arms.length; n++) {
@@ -189,6 +206,82 @@ if (i % 2 === 0) {
   text('111010111|010010100|010010111|010010100|010111111', 1, 3, 0,0,0);
 }`,
 
+  // Newer physics/state-based animations (use the state, fade and rand helpers)
+  "bouncy ball": `// Ball with gravity, bounce, squash and a colour-cycling trail.
+fade(0.5);
+if (!state.ball) state.ball = { x: 2, y: 2, vx: 0.5, vy: 0 };
+const b = state.ball;
+b.vy += 0.12; b.x += b.vx; b.y += b.vy;
+if (b.x < 0.5) { b.x = 0.5; b.vx = Math.abs(b.vx); }
+if (b.x > 10.5) { b.x = 10.5; b.vx = -Math.abs(b.vx); }
+let squash = false;
+if (b.y >= 10) { b.y = 10; b.vy = -Math.abs(b.vy) * 0.97 - 0.08; squash = true; }
+const [r, g, bl] = hsv((i * 7) % 360, 1, 1);
+line(0, 11, 11, 11, 50, 50, 70);
+if (squash) rect(Math.round(b.x) - 1, 10, 3, 1, r, g, bl);
+else { set(b.x, b.y, r, g, bl); set(b.x, b.y - 1, r * 0.4, g * 0.4, bl * 0.4); }`,
+
+  "ocean waves": `// Rolling sea with foam on the crests.
+for (let x = 0; x < W; x++) {
+  const s = Math.sin((x + i * 0.8) / 2.2) * 1.4 + Math.sin((x - i * 0.5) / 3.1) * 1.1;
+  const top = Math.round(5 + s);
+  for (let y = Math.max(0, top); y < H; y++) {
+    const depth = (y - top) / ((H - top) || 1);
+    set(x, y, 10 * (1 - depth), 60 + 110 * (1 - depth), 150 + 90 * (1 - depth));
+  }
+  if ((x + i) % 5 === 0) set(x, top, 235, 245, 255);
+}`,
+
+  "aurora": `// Aurora curtains drifting over a starry sky.
+if (!state.stars) state.stars = Array.from({ length: 10 }, () => [Math.floor(rand(W)), Math.floor(rand(H))]);
+for (const [sx, sy] of state.stars) if (rand(1) < 0.9) set(sx, sy, 70, 70, 95);
+for (let x = 0; x < W; x++) {
+  const base = 2.5 + Math.sin((x + i * 0.55) / 2.4) * 2 + Math.sin((x * 1.7 - i * 0.3) / 3) * 1.2;
+  for (let y = 0; y < H; y++) {
+    const d = y - base;
+    if (d > 0 && d < 6) {
+      const v = (1 - d / 6) * (0.45 + 0.55 * Math.sin((x * 2 + i) / 3) ** 2);
+      const purple = d > 3.5;
+      set(x, y, purple ? 130 * v : 10 * v, purple ? 60 * v : 230 * v, purple ? 200 * v : 120 * v);
+    }
+  }
+}`,
+
+  "game of life": `// Conway's Game of Life on a wrapping grid, reseeds when it dies down.
+const reseed = () => Array.from({ length: W * H }, () => (rand(1) < 0.3 ? 1 : 0));
+if (!state.cells) state.cells = reseed();
+const cur = state.cells;
+const next = new Array(W * H).fill(0);
+let alive = 0;
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx || dy) n += cur[((y + dy + H) % H) * W + ((x + dx + W) % W)];
+      }
+    }
+    const on = cur[y * W + x] ? n === 2 || n === 3 : n === 3;
+    if (on) {
+      next[y * W + x] = 1;
+      alive += 1;
+      const [r, g, b] = hsv((x * 10 + y * 10 + i * 3) % 360, 0.75, 1);
+      set(x, y, r, g, b);
+    }
+  }
+}
+state.cells = alive < 6 || i % 120 === 119 ? reseed() : next;`,
+
+  "rainbow swirl": `// Rotating rainbow spiral.
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const a = Math.atan2(y - 5.5, x - 5.5);
+    const dist = Math.hypot(x - 5.5, y - 5.5);
+    const [r, g, b] = hsv(((a / Math.PI) * 180 + dist * 30 - i * 14 + 1080) % 360, 1, 1);
+    set(x, y, r, g, b);
+  }
+}`,
+
   // Claude's animations - Part 1
   "claude wave": `// Sine wave ripple
 for (let x = 0; x < W; x++) {
@@ -250,24 +343,24 @@ for (let y = 0; y < H; y++) {
   }
 }`,
 
-  "claude starfield": `// Starfield zoom
-for (let n = 0; n < 30; n++) {
-  const z = ((i + n * 7) % 40) / 40;
-  const x = Math.round(5.5 + (n % 7 - 3) * z * 3);
-  const y = Math.round(5.5 + (Math.floor(n / 7) - 2) * z * 3);
-  set(x, y, 255 * z, 255 * z, 255 * z);
+  "claude starfield": `// Warp-speed starfield radiating from centre with streaks.
+fade(0.55);
+if (!state.stars) state.stars = Array.from({ length: 16 }, () => ({ a: rand(Math.PI * 2), d: rand(5) }));
+for (const st of state.stars) {
+  st.d += 0.2 + st.d * 0.22;
+  if (st.d > 8.5) { st.a = rand(Math.PI * 2); st.d = 0.3; }
+  const v = Math.min(1, st.d / 4.5);
+  set(5.5 + Math.cos(st.a) * st.d, 5.5 + Math.sin(st.a) * st.d, 255 * v, 255 * v, 255);
 }`,
 
-  "claude radar": `// Radar sweep
-const a = (i / 6) * Math.PI;
-const cx = 5.5, cy = 5.5;
-for (let r = 1; r < 7; r++) {
-  for (let aa = 0; aa < Math.PI * 2; aa += 0.3) {
-    const x = Math.round(cx + Math.cos(aa) * r);
-    const y = Math.round(cy + Math.sin(aa) * r);
-    const diff = Math.abs(aa - a);
-    if (diff < 0.5 || diff > Math.PI * 2 - 0.5) set(x, y, 0, 255, 100);
-  }
+  "claude radar": `// Radar sweep with phosphor afterglow and red contacts.
+fade(0.8);
+const a = i / 4;
+for (let r = 0; r < 6.5; r += 0.4) set(5.5 + Math.cos(a) * r, 5.5 + Math.sin(a) * r, 40, 255, 90);
+for (const [bx, by] of [[9, 3], [2, 8], [8, 9]]) {
+  let d = (a - Math.atan2(by - 5.5, bx - 5.5)) % (Math.PI * 2);
+  if (d < 0) d += Math.PI * 2;
+  if (d < 1.4) set(bx, by, 255, 70, 60);
 }`,
 
   "claude knight rider": `// KITT scanner
@@ -298,12 +391,20 @@ for (let n = 0; n < 8; n++) {
   }
 }`,
 
-  "claude pac": `// Pac-Man chase
-const px = (i % 8) + 1;
-for (let n = 0; n < 3; n++) set(px, 6, 255, 255, 0);
-const gx = (i % 8) + 4;
-set(gx, 6, 255, 0, 0);
-set(gx + 1, 6, 255, 0, 0);`,
+  "claude pac": `// Pac-Man chomps a dot trail, ghost in pursuit.
+const px = ((i * 0.8) % (W + 8)) - 4;
+for (let x = 1; x < W; x += 2) if (x > px + 1) set(x, 6, 255, 220, 150);
+const mouthOpen = i % 2 === 0;
+for (let dy = -1; dy <= 1; dy++) {
+  for (let dx = -1; dx <= 1; dx++) {
+    if (mouthOpen && dx === 1 && dy !== -1) continue;
+    set(px + dx, 6 + dy, 255, 230, 0);
+  }
+}
+const gx = px - 4;
+for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) set(gx + dx, 6 + dy, 255, 70, 120);
+set(gx - 0.5, 5, 255, 255, 255);
+set(gx + 1, 5, 255, 255, 255);`,
 
   "claude sine bars": `// Vertical sine bars
 for (let x = 0; x < W; x++) {
@@ -403,13 +504,23 @@ for (let y = 0; y < H; y++) {
   if ((y + i) % 3 === 0) rect(0, y, W, 1, 255, 255, 255);
 }`,
 
-  "claude lava lamp": `// Lava lamp blobs
-for (let n = 0; n < 6; n++) {
-  const y = 5.5 + Math.sin(i / 4 + n) * 4;
-  const x = n * 2;
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      set(x + dx, Math.round(y) + dy, 255, 100, 0);
+  "claude lava lamp": `// Metaball lava lamp: blobs drift, merge and split.
+if (!state.blobs) state.blobs = [0, 1, 2].map((n) => ({ x: 3 + n * 3, y: 3 + n * 2.5, vx: 0.12 + rand(0.14), vy: 0.09 + rand(0.16) }));
+for (const bl of state.blobs) {
+  bl.x += bl.vx; bl.y += bl.vy;
+  if (bl.x < 1 || bl.x > 10) bl.vx *= -1;
+  if (bl.y < 1 || bl.y > 10) bl.vy *= -1;
+}
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    let f = 0;
+    for (const bl of state.blobs) {
+      const dx = x - bl.x, dy = y - bl.y;
+      f += 2.2 / (0.4 + dx * dx + dy * dy);
+    }
+    if (f > 0.55) {
+      const v = Math.min(1, (f - 0.55) * 1.5);
+      set(x, y, 180 + 75 * v, 30 + 130 * v, 10 * v);
     }
   }
 }`,
@@ -552,26 +663,44 @@ const paddle2 = 4 + Math.floor(Math.cos(i / 4) * 2);
 for (let y = paddle1; y < paddle1 + 3; y++) set(0, y, 255, 0, 0);
 for (let y = paddle2; y < paddle2 + 3; y++) set(W - 1, y, 0, 0, 255);`,
 
-  "claude snake": `// Snake game trail
-const len = 8;
-for (let n = 0; n < len; n++) {
-  const x = ((i - n) % W + W) % W;
-  const y = 5 + Math.floor(Math.sin((i - n) / 3) * 2);
-  const v = 1 - n / len;
-  set(x, y, 100 * v, 255 * v, 100 * v);
-}`,
-
-  "claude fireworks": `// Firework burst
-const stage = i % 16;
-if (stage < 8) {
-  set(6, 11 - stage, 255, 200, 0);
+  "claude snake": `// Snake that actually hunts the food and grows.
+if (!state.snake) { state.snake = [[2, 5], [1, 5], [0, 5]]; state.food = [9, 5]; state.dir = [1, 0]; }
+const s = state.snake, f = state.food, h = s[0];
+const cand = [];
+if (f[0] !== h[0]) cand.push([Math.sign(f[0] - h[0]), 0]);
+if (f[1] !== h[1]) cand.push([0, Math.sign(f[1] - h[1])]);
+const d = cand.find((c) => !(c[0] === -state.dir[0] && c[1] === -state.dir[1])) || state.dir;
+state.dir = d;
+const nh = [(h[0] + d[0] + W) % W, (h[1] + d[1] + H) % H];
+s.unshift(nh);
+if (nh[0] === f[0] && nh[1] === f[1]) {
+  state.food = [Math.floor(rand(W)), Math.floor(rand(H))];
+  if (s.length > 22) s.length = 22;
 } else {
-  const s = stage - 8;
-  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-    const x = Math.round(6 + Math.cos(a) * s);
-    const y = Math.round(3 + Math.sin(a) * s);
-    set(x, y, 255 - s * 30, 200 - s * 25, s * 30);
+  s.pop();
+}
+set(f[0], f[1], 255, 60, 60);
+s.forEach(([x, y], n) => { const v = Math.max(0.2, 1 - n / (s.length + 2)); set(x, y, 60 * v, 255 * v, 90 * v); });`,
+
+  "claude fireworks": `// Fireworks with gravity, drag and fading trails.
+fade(0.72);
+if (!state.parts) { state.parts = []; state.next = 0; }
+if (i >= state.next) {
+  const cx = 2 + rand(8), cy = 1 + rand(4);
+  const [r, g, b] = hsv(rand(360), 1, 1);
+  for (let n = 0; n < 26; n++) {
+    const a = rand(Math.PI * 2), sp = 0.35 + rand(1.1);
+    state.parts.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 9 + rand(9), r, g, b });
   }
+  state.next = i + 5 + Math.floor(rand(7));
+}
+state.parts = state.parts.filter((p) => p.life > 0);
+for (const p of state.parts) {
+  p.x += p.vx; p.y += p.vy;
+  p.vy += 0.07; p.vx *= 0.93; p.vy *= 0.93;
+  p.life -= 1;
+  const v = Math.min(1, p.life / 8);
+  set(p.x, p.y, p.r * v, p.g * v, p.b * v);
 }`,
 
   "claude tv static": `// TV static noise
@@ -612,10 +741,10 @@ for (let n = 0; n < 8; n++) {
 }`,
 
   "claude traffic light": `// Traffic signal
-const state = Math.floor(i / 8) % 3;
-set(6, 2, state === 0 ? 255 : 50, 0, 0);
-set(6, 5, state === 1 ? 255 : 50, state === 1 ? 255 : 50, 0);
-set(6, 8, state === 2 ? 0 : 20, state === 2 ? 255 : 50, 0);`,
+const phase = Math.floor(i / 8) % 3;
+set(6, 2, phase === 0 ? 255 : 50, 0, 0);
+set(6, 5, phase === 1 ? 255 : 50, phase === 1 ? 255 : 50, 0);
+set(6, 8, phase === 2 ? 0 : 20, phase === 2 ? 255 : 50, 0);`,
 
   "claude elevator": `// Elevator going up and down
 const y = Math.abs((i % 20) - 10);
@@ -646,14 +775,6 @@ for (let r = 0; r < 6; r++) {
     const [rr2,g,b] = hsv((r * 60 + i * 10) % 360, 1, 1);
     set(x, y, rr2, g, b);
   }
-}`,
-
-  "claude pipes": `// Screensaver pipes
-const path = [[5,0],[5,1],[5,2],[6,2],[7,2],[7,3],[7,4]];
-const len = Math.min(i % (path.length + 4), path.length);
-for (let n = 0; n < len; n++) {
-  const [x,y] = path[n];
-  set(x, y, 0, 255, 0);
 }`,
 
   "claude gauge": `// Fuel gauge
@@ -690,15 +811,6 @@ for (let n = 0; n < strength; n++) {
 const progress = i % W;
 rect(0, 5, progress, 2, 0, 255, 100);
 rect(progress, 5, W - progress, 2, 50, 50, 50);`,
-
-  "claude compass": `// Rotating compass
-const dirs = [[6,0,'N'],[11,5,'E'],[6,11,'S'],[0,5,'W']];
-const dir = Math.floor((i / 4) % 4);
-for (let n = 0; n < dirs.length; n++) {
-  const [x,y,lbl] = dirs[n];
-  const bright = n === dir ? 255 : 50;
-  set(x, y, bright, bright, bright);
-}`,
 
   "claude sunrise": `// Sunrise effect
 const sun_y = 10 - (i % 11);
@@ -743,8 +855,8 @@ if (flap) {
   set(7, y, 255, 150, 200);
 }`,
 
-  "claude rocket": `// Rocket launch
-const y = Math.max(0, 10 - i);
+  "claude rocket": `// Rocket launch (relaunches on a loop)
+const y = Math.max(0, 10 - (i % 16));
 if (y > 0) {
   rect(5, y, 2, 3, 200, 200, 200);
   set(5, y, 255, 0, 0);
@@ -758,12 +870,52 @@ if (y > 0) {
 }`,
 };
 
+function currentDevice() {
+  return deviceSelEl && deviceSelEl.value ? deviceSelEl.value : "";
+}
+
 async function api(path, body = null) {
+  const device = currentDevice();
+  if (body !== null && device) body = { device, ...body };
+  if (body === null && device) path += (path.includes("?") ? "&" : "?") + "device=" + encodeURIComponent(device);
   const opts = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
   const res = await fetch(path, opts);
   const data = await res.json();
   if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
   return data;
+}
+
+async function populateDevices() {
+  if (!deviceSelEl) return;
+  const res = await fetch("/api/devices");
+  const summary = await res.json();
+  const urlDevice = new URLSearchParams(location.search).get("device");
+  const addresses = [];
+  for (const row of summary.sessions || []) addresses.push(row.address);
+  for (const addr of summary.known || []) {
+    if (!addresses.some((a) => a.toUpperCase() === addr.toUpperCase())) addresses.push(addr);
+  }
+  deviceSelEl.innerHTML = "";
+  const def = document.createElement("option");
+  def.value = "";
+  def.textContent = `default (${summary.defaultAddress})`;
+  deviceSelEl.appendChild(def);
+  for (const addr of addresses) {
+    if (addr.toUpperCase() === summary.defaultAddress.toUpperCase()) continue;
+    const option = document.createElement("option");
+    option.value = addr;
+    option.textContent = addr;
+    deviceSelEl.appendChild(option);
+  }
+  if (urlDevice) {
+    if (![...deviceSelEl.options].some((option) => option.value.toUpperCase() === urlDevice.toUpperCase())) {
+      const option = document.createElement("option");
+      option.value = urlDevice;
+      option.textContent = urlDevice;
+      deviceSelEl.appendChild(option);
+    }
+    deviceSelEl.value = urlDevice;
+  }
 }
 
 function addLog(text) {
@@ -854,11 +1006,22 @@ function renderGrid() {
   });
 }
 
+function fade(factor = 0.7) {
+  for (let n = 0; n < pixels.length; n++) {
+    pixels[n] = prevPixels[n].map((value) => Math.max(0, Math.floor(value * factor)));
+  }
+}
+
+function rand(n = 1) {
+  return Math.random() * n;
+}
+
 function runFrame() {
   clear();
   const source = scriptEl.value;
-  const fn = new Function("W", "H", "i", "frame", "clear", "set", "rect", "line", "hsv", "text", `const t=i; ${source}`);
-  fn(W, H, frame, frame, clear, set, rect, line, hsv, text);
+  const fn = new Function("W", "H", "i", "frame", "clear", "set", "rect", "line", "hsv", "text", "state", "fade", "rand", `const t=i; ${source}`);
+  fn(W, H, frame, frame, clear, set, rect, line, hsv, text, animState, fade, rand);
+  prevPixels = pixels.map((p) => [...p]);
   renderGrid();
   frameNoEl.value = String(frame);
   previewEl.textContent = `frame=${frame}\nlit=${pixels.filter((p) => p.some((v) => v > 0)).length}`;
@@ -907,6 +1070,8 @@ async function refreshStatus() {
 function loadExample(name) {
   scriptEl.value = EXAMPLES[name];
   frame = 0;
+  animState = {};
+  prevPixels = pixels.map(() => [0, 0, 0]);
   runFrame();
 }
 
@@ -955,7 +1120,7 @@ for (const name of Object.keys(EXAMPLES)) {
 }
 
 exampleEl.addEventListener("change", () => loadExample(exampleEl.value));
-frameNoEl.addEventListener("change", () => { frame = Math.max(0, Number(frameNoEl.value) || 0); runFrame(); });
+frameNoEl.addEventListener("change", () => { frame = Math.max(0, Number(frameNoEl.value) || 0); if (frame === 0) animState = {}; runFrame(); });
 document.querySelector("#connect").addEventListener("click", async () => { await api("/api/connect", {}); addLog("connected"); await refreshStatus(); });
 document.querySelector("#startPaint").addEventListener("click", async () => { await api("/api/start-paint", {}); addLog("sent start paint"); await refreshStatus(); });
 document.querySelector("#play").addEventListener("click", play);
@@ -967,9 +1132,12 @@ document.querySelector("#startAutoSkip").addEventListener("click", startAutoSkip
 document.querySelector("#stopAll").addEventListener("click", stopAutoSkip);
 document.querySelector("#freezeAutoSkip").addEventListener("click", freezeAutoSkip);
 
+if (deviceSelEl) deviceSelEl.addEventListener("change", () => refreshStatus().catch((err) => addLog(err.message)));
+
 async function init() {
   renderGrid();
   loadExample("pet blink");
+  await populateDevices().catch(() => {});
   await refreshStatus();
   setInterval(() => refreshStatus().catch((err) => addLog(err.message)), 1500);
 }

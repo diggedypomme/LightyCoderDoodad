@@ -13,8 +13,12 @@
       .app-card p { color: #4c5660; font-size: 13px; margin-bottom: 10px; }
       [data-theme="dark"] .app-card { border-color: #3d4450; background: #2d3239; }
       [data-theme="dark"] .app-card p { color: #a0a8b1; }
-      .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: end; margin-bottom: 14px; }
+      .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: end; margin-bottom: 14px; }
       .device-row label { margin: 0; }
+      .session-card { border: 1px solid #d7dde3; border-radius: 8px; padding: 10px; background: #f8fafc; margin-bottom: 10px; }
+      [data-theme="dark"] .session-card { border-color: #3d4450; background: #2d3239; }
+      .session-info { font-family: Consolas, monospace; font-size: 13px; margin-bottom: 8px; }
+      .session-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
       .docs-embed { margin-top: 16px; border-top: 1px solid #d7dde3; padding-top: 14px; }
       [data-theme="dark"] .docs-embed { border-top-color: #3d4450; }
       .docs-embed h1 { display: none; }
@@ -57,8 +61,12 @@
             </label>
             <button id="scanDevices">Scan</button>
             <button id="useDevice">Use Selected</button>
+            <button id="connectDevice">Connect Selected</button>
           </div>
-          <p class="hint">For a shared checkout, scan first and select your own Arcade Coder. The old hardcoded address is only a fallback.</p>
+          <p class="hint">Scan, then either "Use Selected" to make a board the default, or "Connect Selected" to attach it as an extra board. Note: a board that is already connected (to this app or a phone) stops advertising and will not show up in scans - disconnect it first if you need to rescan it.</p>
+          <h2>Active Devices</h2>
+          <div id="sessions"></div>
+          <p class="hint">Multiple boards can be connected at once. API calls target the default board unless the JSON body includes <code>"device": "AA:BB:CC:DD:EE:FF"</code>.</p>
           <div id="docsEmbed" class="docs-embed">Loading docs...</div>
         </div>
 

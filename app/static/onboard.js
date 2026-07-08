@@ -1,6 +1,7 @@
 const statusEl = document.querySelector("#status");
 const logEl = document.querySelector("#log");
 const deviceSelectEl = document.querySelector("#deviceSelect");
+const sessionsEl = document.querySelector("#sessions");
 const docsEmbedEl = document.querySelector("#docsEmbed");
 
 async function api(path, body = null) {
@@ -22,19 +23,22 @@ function formatDevice(device) {
   return `${flag}${name} | ${device.address}${rssi}`;
 }
 
-function setDeviceOptions(devices, currentAddress = null) {
+function setDeviceOptions(devices, knownAddresses = []) {
   deviceSelectEl.innerHTML = "";
-  if (currentAddress) {
-    const option = document.createElement("option");
-    option.value = currentAddress;
-    option.textContent = `Current/fallback | ${currentAddress}`;
-    deviceSelectEl.appendChild(option);
-  }
+  const seen = new Set();
   for (const device of devices || []) {
     const option = document.createElement("option");
     option.value = device.address;
     option.textContent = formatDevice(device);
     if (device.likelyArcadeCoder) option.selected = true;
+    deviceSelectEl.appendChild(option);
+    seen.add(device.address.toUpperCase());
+  }
+  for (const address of knownAddresses) {
+    if (seen.has(address.toUpperCase())) continue;
+    const option = document.createElement("option");
+    option.value = address;
+    option.textContent = `Known device | ${address}`;
     deviceSelectEl.appendChild(option);
   }
 }
@@ -46,9 +50,13 @@ async function scanDevices() {
   button.textContent = "Scanning...";
   try {
     addLog("scanning BLE devices...");
-    const data = await api("/api/scan-devices");
-    setDeviceOptions(data.devices, null);
-    addLog(`scan found ${data.devices.length} device(s)`);
+    const [scan, summary] = await Promise.all([api("/api/scan-devices"), api("/api/devices")]);
+    setDeviceOptions(scan.devices, summary.known || []);
+    addLog(`scan found ${scan.devices.length} device(s)`);
+    const connected = (scan.sessions || []).filter((row) => row.connected);
+    if (connected.length) {
+      addLog(`note: ${connected.map((row) => row.address).join(", ")} already connected - connected boards do not advertise, so they never appear in scans`);
+    }
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -56,20 +64,20 @@ async function scanDevices() {
 }
 
 async function useSelectedDevice() {
-  const button = document.querySelector("#useDevice");
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = "Selecting...";
-  try {
-    const address = deviceSelectEl.value;
-    if (!address) throw new Error("No BLE device selected");
-    const data = await api("/api/select-device", { address });
-    addLog(`selected ${data.status.address}`);
-    await refreshStatus();
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
+  const address = deviceSelectEl.value;
+  if (!address) throw new Error("No BLE device selected");
+  const data = await api("/api/select-device", { address });
+  addLog(`default device is now ${data.status.address}`);
+  await refreshStatus();
+}
+
+async function connectSelectedDevice() {
+  const address = deviceSelectEl.value;
+  if (!address) throw new Error("No BLE device selected");
+  addLog(`connecting ${address} as extra device...`);
+  await api("/api/connect", { device: address });
+  addLog(`connected ${address}`);
+  await refreshStatus();
 }
 
 function addLog(text) {
@@ -77,9 +85,60 @@ function addLog(text) {
   logEl.textContent = `[${now}] ${text}\n` + logEl.textContent;
 }
 
+function sessionButton(label, handler) {
+  const button = document.createElement("button");
+  button.textContent = label;
+  button.addEventListener("click", () => handler().catch((err) => addLog(err.message)));
+  return button;
+}
+
+function renderSessions(summary) {
+  sessionsEl.innerHTML = "";
+  for (const row of summary.sessions || []) {
+    const card = document.createElement("div");
+    card.className = "session-card";
+    const info = document.createElement("div");
+    info.className = "session-info";
+    const state = row.connected ? "Connected" : "Disconnected";
+    const paint = row.paintStarted ? " | paint started" : "";
+    const badge = row.isDefault ? " (default)" : "";
+    info.textContent = `${row.address}${badge} - ${state}${paint}`;
+    card.appendChild(info);
+    const buttons = document.createElement("div");
+    buttons.className = "session-buttons";
+    buttons.appendChild(sessionButton("Connect", async () => {
+      await api("/api/connect", { device: row.address });
+      addLog(`connected ${row.address}`);
+      await refreshStatus();
+    }));
+    buttons.appendChild(sessionButton("Start Paint", async () => {
+      await api("/api/start-paint", { device: row.address });
+      addLog(`sent start paint to ${row.address}`);
+      await refreshStatus();
+    }));
+    buttons.appendChild(sessionButton("Disconnect", async () => {
+      await api("/api/disconnect", { device: row.address });
+      addLog(`disconnected ${row.address}`);
+      await refreshStatus();
+    }));
+    if (!row.isDefault) {
+      buttons.appendChild(sessionButton("Make Default", async () => {
+        await api("/api/select-device", { address: row.address });
+        addLog(`default device is now ${row.address}`);
+        await refreshStatus();
+      }));
+    }
+    card.appendChild(buttons);
+    sessionsEl.appendChild(card);
+  }
+}
+
 async function refreshStatus() {
+  const summary = await api("/api/devices");
+  const connectedCount = (summary.sessions || []).filter((row) => row.connected).length;
+  statusEl.textContent = `${connectedCount} device(s) connected | default ${summary.defaultAddress}`;
+  renderSessions(summary);
   const status = await api("/api/status");
-  statusEl.textContent = `${status.connected ? "Connected" : "Disconnected"} | paint ${status.paintStarted ? "started" : "not started"} | ${status.address}`;
   logEl.textContent = [...(status.log || [])].reverse().join("\n") + (logEl.textContent ? "\n" + logEl.textContent : "");
 }
 
@@ -91,6 +150,7 @@ async function startModule(module) {
 
 document.querySelector("#scanDevices").addEventListener("click", () => scanDevices().catch((err) => addLog(err.message)));
 document.querySelector("#useDevice").addEventListener("click", () => useSelectedDevice().catch((err) => addLog(err.message)));
+document.querySelector("#connectDevice").addEventListener("click", () => connectSelectedDevice().catch((err) => addLog(err.message)));
 
 document.querySelector("#connect").addEventListener("click", async () => {
   await api("/api/connect", {});
@@ -108,6 +168,12 @@ document.querySelectorAll("[data-module]").forEach((button) => {
   button.addEventListener("click", () => startModule(button.dataset.module).catch((err) => addLog(err.message)));
 });
 
+async function initDeviceList() {
+  const summary = await api("/api/devices");
+  setDeviceOptions([], [summary.defaultAddress, ...(summary.known || [])]);
+}
+
+initDeviceList().catch(() => {});
 refreshStatus().catch((err) => addLog(err.message));
 setInterval(() => refreshStatus().catch(() => {}), 2000);
 

@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 import zlib
+from concurrent.futures import TimeoutError as FuturesTimeout
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -52,7 +53,13 @@ def load_device_config() -> dict[str, object]:
 
 
 def save_device_config(address: str) -> None:
-    CONFIG_PATH.write_text(json.dumps({"address": address}, indent=2) + "\n", encoding="utf-8")
+    config = load_device_config()
+    known = [str(item) for item in (config.get("known") or []) if isinstance(item, str)]
+    if address not in known:
+        known.append(address)
+    config["address"] = address
+    config["known"] = known
+    CONFIG_PATH.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
 def default_address() -> str:
@@ -444,7 +451,11 @@ def read_system_stats() -> dict[str, object]:
 
 
 async def scan_ble_devices(timeout: float = 6.0) -> list[dict[str, object]]:
-    devices = await BleakScanner.discover(timeout=timeout, return_adv=True)
+    # Hold the radio lock so no session starts a connect attempt mid-scan;
+    # simultaneous scan+connect on the Windows BLE stack makes devices vanish
+    # from scan results.
+    async with RADIO_LOCK:
+        devices = await BleakScanner.discover(timeout=timeout, return_adv=True)
     rows: list[dict[str, object]] = []
     for address, pair in devices.items():
         device, adv = pair
@@ -471,6 +482,16 @@ def compact_canvas_command(canvas: bytes) -> bytes:
     return command
 
 
+# One BLE radio: never scan while a connect attempt is in flight, and never
+# run two connect attempts in parallel. Either combination can leave the
+# Windows stack holding zombie connections, and a connected Arcade Coder stops
+# advertising - which is why it then never shows up in scans.
+RADIO_LOCK = asyncio.Lock()
+
+CONNECT_COOLDOWN_SECONDS = 8.0
+CONNECT_TIMEOUT_SECONDS = 20.0
+
+
 class BleSession:
     def __init__(self, address: str) -> None:
         self.address = address
@@ -479,9 +500,11 @@ class BleSession:
         self.last_notify: str | None = None
         self.log: list[str] = []
         self.write_lock = asyncio.Lock()
+        self.connect_lock = asyncio.Lock()
+        self.next_connect_allowed = 0.0
 
     def add_log(self, message: str) -> None:
-        line = f"[{time.strftime('%H:%M:%S')}] {message}"
+        line = f"[{time.strftime('%H:%M:%S')}] [{self.address[-5:]}] {message}"
         self.log.append(line)
         self.log = self.log[-80:]
         print(line, flush=True)
@@ -491,23 +514,59 @@ class BleSession:
         self.last_notify = raw.hex()
         self.add_log(f"notify {len(raw)} bytes hex: {spaced_hex(raw)} | dec: {decimal_bytes(raw)}")
 
-    async def ensure_connected(self) -> None:
-        # Check if we have a valid connection
+    def is_connected(self) -> bool:
         try:
-            if self.client and self.client.is_connected:
-                return
+            return bool(self.client and self.client.is_connected)
         except OSError:
-            # Windows COM error - connection is stale, force reconnect
-            self.add_log("stale connection detected, forcing reconnect")
-            self.client = None
+            # Windows COM error - treat as disconnected, cleanup happens on next connect
+            return False
 
-        self.add_log(f"connecting to {self.address}")
-        self.client = BleakClient(self.address)
-        await self.client.connect()
-        # Wait for service discovery to complete
-        await asyncio.sleep(1.5)
-        await self.client.start_notify(CALLBACK_CHAR, self.on_notify)
-        self.add_log("connected and subscribed")
+    async def _dispose_client(self) -> None:
+        """Drop the current client, always disconnecting it first.
+
+        Overwriting a BleakClient without disconnecting leaks the underlying
+        WinRT connection; the device then stays connected to Windows, stops
+        advertising, and disappears from scans until everything is restarted.
+        """
+        client, self.client = self.client, None
+        if client is not None:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+    async def ensure_connected(self) -> None:
+        if self.is_connected():
+            return
+        async with self.connect_lock:
+            if self.is_connected():
+                return
+            now = time.monotonic()
+            if now < self.next_connect_allowed:
+                remaining = self.next_connect_allowed - now
+                raise RuntimeError(
+                    f"not connected to {self.address}; last connect attempt failed, retry allowed in {remaining:.0f}s"
+                )
+            await self._dispose_client()
+            self.add_log(f"connecting to {self.address}")
+            client = BleakClient(self.address)
+            try:
+                async with RADIO_LOCK:
+                    await asyncio.wait_for(client.connect(), timeout=CONNECT_TIMEOUT_SECONDS)
+                    # Wait for service discovery to complete
+                    await asyncio.sleep(1.5)
+                    await client.start_notify(CALLBACK_CHAR, self.on_notify)
+            except BaseException as exc:
+                self.next_connect_allowed = time.monotonic() + CONNECT_COOLDOWN_SECONDS
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+                self.add_log(f"connect failed ({exc!r}); cooling down {CONNECT_COOLDOWN_SECONDS:.0f}s")
+                raise
+            self.client = client
+            self.next_connect_allowed = 0.0
+            self.add_log("connected and subscribed")
 
     async def write_with_retry(self, characteristic: str, data: bytes, response: bool = False) -> None:
         """Write to GATT characteristic with automatic reconnect on COM errors."""
@@ -520,7 +579,7 @@ class BleSession:
                 exc_str = str(exc)
                 if "Service Discovery" in exc_str or "COM error" in exc_str or isinstance(exc, (OSError, asyncio.TimeoutError)):
                     self.add_log(f"write failed ({exc}), reconnecting and retrying")
-                    self.client = None
+                    await self._dispose_client()
                     await self.ensure_connected()
                     assert self.client is not None
                     await asyncio.wait_for(self.client.write_gatt_char(characteristic, data, response=response), timeout=6)
@@ -528,14 +587,9 @@ class BleSession:
                     raise
 
     async def disconnect(self) -> None:
-        if self.client:
-            try:
-                if self.client.is_connected:
-                    await self.client.disconnect()
-            except Exception as e:
-                self.add_log(f"disconnect error (ignoring): {e}")
-        self.client = None
+        await self._dispose_client()
         self.started_paint = False
+        self.next_connect_allowed = 0.0
         self.add_log("disconnected")
 
     async def reconnect(self) -> None:
@@ -580,8 +634,9 @@ class BleSession:
         decoded = decode_compact_canvas(self.last_notify) if self.last_notify else None
         return {
             "address": self.address,
-            "connected": bool(self.client and self.client.is_connected),
+            "connected": self.is_connected(),
             "paintStarted": self.started_paint,
+            "connectCooldownSeconds": round(max(0.0, self.next_connect_allowed - time.monotonic()), 1),
             "lastNotify": self.last_notify,
             "decodedCanvas": decoded,
             "log": self.log,
@@ -591,23 +646,58 @@ class BleSession:
 class AppState:
     def __init__(self, address: str) -> None:
         self.loop = asyncio.new_event_loop()
-        self.session = BleSession(address)
+        self.default_address = address
+        self.sessions: dict[str, BleSession] = {}
+        self.sessions_guard = threading.Lock()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
+        self.get_session(address)
+
+    @property
+    def session(self) -> BleSession:
+        return self.get_session()
+
+    def get_session(self, address: str | None = None) -> BleSession:
+        addr = str(address or "").strip() or self.default_address
+        key = addr.upper()
+        with self.sessions_guard:
+            if key not in self.sessions:
+                self.sessions[key] = BleSession(addr)
+            return self.sessions[key]
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
 
-    def run(self, coro):
+    def run(self, coro, timeout: float = 30):
         future = asyncio.run_coroutine_threadsafe(coro, self.loop)
-        return future.result(timeout=30)
+        try:
+            return future.result(timeout=timeout)
+        except FuturesTimeout:
+            # Cancel the coroutine too; abandoned connect attempts otherwise
+            # pile up on the loop and fight the radio.
+            future.cancel()
+            raise TimeoutError(f"BLE operation timed out after {timeout:.0f}s and was cancelled")
 
     def set_address(self, address: str) -> None:
         save_device_config(address)
-        if self.session.client and self.session.client.is_connected:
-            self.run(self.session.disconnect())
-        self.session = BleSession(address)
+        self.default_address = address
+        self.get_session(address)
+
+    def devices_summary(self) -> dict[str, object]:
+        with self.sessions_guard:
+            sessions = list(self.sessions.values())
+        known = [str(item) for item in (load_device_config().get("known") or []) if isinstance(item, str)]
+        rows = [
+            {
+                "address": sess.address,
+                "connected": sess.is_connected(),
+                "paintStarted": sess.started_paint,
+                "isDefault": sess.address.upper() == self.default_address.upper(),
+            }
+            for sess in sessions
+        ]
+        return {"ok": True, "defaultAddress": self.default_address, "known": known, "sessions": rows}
 
 
 STATE: AppState | None = None
@@ -718,7 +808,13 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/status":
             assert STATE is not None
-            json_response(self, 200, STATE.session.status())
+            params = dict(param.split("=", 1) for param in parsed.query.split("&") if "=" in param)
+            device = unquote(params.get("device", "")).strip() or None
+            json_response(self, 200, STATE.get_session(device).status())
+            return
+        if parsed.path == "/api/devices":
+            assert STATE is not None
+            json_response(self, 200, STATE.devices_summary())
             return
         if parsed.path == "/api/config":
             json_response(self, 200, {"canvases": CANVASES, "knownPixels": KNOWN_PIXELS})
@@ -752,8 +848,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/scan-devices":
             assert STATE is not None
-            devices = STATE.run(scan_ble_devices(6.0))
-            json_response(self, 200, {"ok": True, "devices": devices})
+            devices = STATE.run(scan_ble_devices(6.0), timeout=25)
+            summary = STATE.devices_summary()
+            json_response(self, 200, {
+                "ok": True,
+                "devices": devices,
+                "sessions": summary["sessions"],
+                "note": "a connected Arcade Coder stops advertising, so already-connected boards will not appear in scan results",
+            })
             return
 
         path = parsed.path
@@ -785,9 +887,12 @@ class Handler(BaseHTTPRequestHandler):
         assert STATE is not None
         try:
             body = read_json(self)
+            # Optional per-request device routing: pass "device": "<address>" in
+            # the JSON body to target a specific board; omit for the default.
+            session = STATE.get_session(str(body.get("device") or "").strip() or None)
             if self.path == "/api/connect":
-                STATE.run(STATE.session.ensure_connected())
-                json_response(self, 200, STATE.session.status())
+                STATE.run(session.ensure_connected(), timeout=60)
+                json_response(self, 200, session.status())
             elif self.path == "/api/select-device":
                 address = str(body.get("address", "")).strip()
                 if not address:
@@ -795,30 +900,30 @@ class Handler(BaseHTTPRequestHandler):
                 STATE.set_address(address)
                 json_response(self, 200, {"ok": True, "status": STATE.session.status()})
             elif self.path == "/api/disconnect":
-                STATE.run(STATE.session.disconnect())
-                json_response(self, 200, STATE.session.status())
+                STATE.run(session.disconnect())
+                json_response(self, 200, session.status())
             elif self.path == "/api/reconnect":
-                STATE.run(STATE.session.reconnect())
-                json_response(self, 200, STATE.session.status())
+                STATE.run(session.reconnect(), timeout=60)
+                json_response(self, 200, session.status())
             elif self.path == "/api/start-paint":
-                STATE.run(STATE.session.start_paint())
-                json_response(self, 200, STATE.session.status())
+                STATE.run(session.start_paint())
+                json_response(self, 200, session.status())
             elif self.path == "/api/start-builtin":
                 module = str(body.get("module", "paint")).strip()
                 if module not in {"paint", "testmode", "initial-interaction", "matrix"}:
                     raise ValueError(f"unsupported built-in module: {module}")
-                STATE.run(STATE.session.start_builtin(module))
-                json_response(self, 200, {"ok": True, "module": module, "status": STATE.session.status()})
+                STATE.run(session.start_builtin(module))
+                json_response(self, 200, {"ok": True, "module": module, "status": session.status()})
             elif self.path == "/api/send-canvas":
                 key_or_hex = str(body.get("canvas", "br"))
                 canvas_hex = CANVASES.get(key_or_hex, key_or_hex)
-                result = STATE.run(STATE.session.send_canvas(canvas_hex, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_canvas(canvas_hex, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, **result, "status": session.status()})
             elif self.path == "/api/send-known-pixel":
                 key = str(body["key"])
                 entry = KNOWN_PIXELS[key]
-                result = STATE.run(STATE.session.send_canvas(str(entry["hex"]), bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "key": key, **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_canvas(str(entry["hex"]), bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "key": key, **result, "status": session.status()})
             elif self.path == "/api/send-single-pixel":
                 x = int(body["x"])
                 y = int(body["y"])
@@ -826,8 +931,8 @@ class Handler(BaseHTTPRequestHandler):
                 g = int(body.get("g", 20))
                 b = int(body.get("b", 220))
                 canvas = single_pixel_canvas(x, y, r, g, b)
-                result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "x": x, "y": y, "r": r & 0xff, "g": g & 0xff, "b": b & 0xff, **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "x": x, "y": y, "r": r & 0xff, "g": g & 0xff, "b": b & 0xff, **result, "status": session.status()})
             elif self.path == "/api/send-rgb-buffer":
                 width = int(body.get("width", 12))
                 height = int(body.get("height", 12))
@@ -842,8 +947,8 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError(f"pixel {index} must be [r,g,b]")
                     rgb.extend(max(0, min(255, int(channel))) for channel in pixel)
                 canvas = compact_canvas_from_rgb(width, height, bytes(rgb))
-                result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "width": width, "height": height, **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "width": width, "height": height, **result, "status": session.status()})
             elif self.path == "/api/mutate":
                 source = str(body.get("source", "br"))
                 canvas_hex = CANVASES.get(source, source)
@@ -852,8 +957,8 @@ class Handler(BaseHTTPRequestHandler):
                 value = int(body["value"])
                 old = payload[offset]
                 payload[offset] = value
-                result = STATE.run(STATE.session.send_canvas(payload.hex(), bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "old": old, "payload": payload.hex(), **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_canvas(payload.hex(), bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "old": old, "payload": payload.hex(), **result, "status": session.status()})
             elif self.path == "/api/send-number":
                 width = 12
                 height = 12
@@ -890,8 +995,8 @@ class Handler(BaseHTTPRequestHandler):
                     total_count = count
 
                 canvas = compact_canvas_from_rgb(width, height, bytes(rgb))
-                result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "count": total_count, **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "count": total_count, **result, "status": session.status()})
             elif self.path == "/api/display-number":
                 # 3x5 digit patterns
                 DIGITS = {
@@ -943,8 +1048,8 @@ class Handler(BaseHTTPRequestHandler):
                                     rgb_data[index + 2] = b
 
                 canvas = compact_canvas_from_rgb(width, height, bytes(rgb_data))
-                result = STATE.run(STATE.session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "number": number, **result, "status": STATE.session.status()})
+                result = STATE.run(session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
+                json_response(self, 200, {"ok": True, "number": number, **result, "status": session.status()})
             elif self.path == "/api/observe":
                 row = {"time": time.time(), **body}
                 with OBS_PATH.open("a", encoding="utf-8") as handle:

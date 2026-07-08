@@ -24,6 +24,7 @@
         </div>
         <div class="toolbar">
           <button id="darkModeToggle" title="Toggle dark mode">Mode</button>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;">Device <select id="deviceSel" title="Which board this page controls"></select></label>
           <button id="connect">Connect</button>
           <button id="startPaint">Start Paint</button>
           <a class="button-link" href="/">Pixel Grid</a>
@@ -83,7 +84,11 @@ rect(x,y,w,h,r,g,b)
 line(x1,y1,x2,y2,r,g,b)
 hsv(h,s,v) -> [r,g,b]
 text(pattern,x,y,r,g,b)
+fade(f)  start from last frame dimmed by f (trails)
+rand(n)  random float 0..n
+state    object persisting between frames
 W=12, H=12, frame number is i</pre>
+            <p class="hint">Two boards? Open this page in two tabs and pick a different device in each (or use ?device=AA:BB:CC:DD:EE:FF in the URL).</p>
           </div>
           <div class="panel">
             <h2>Last Frame</h2>
