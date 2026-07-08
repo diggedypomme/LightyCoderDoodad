@@ -6,7 +6,7 @@
 - Python 3.11 or newer.
 - A Tech Will Save Us Arcade Coder powered on and advertising over BLE.
 
-## Install
+## Windows Install
 
 ```bat
 python -m venv venv
@@ -15,24 +15,39 @@ venv\Scripts\python.exe -m pip install -r requirements.txt
 
 ## Raspberry Pi / Linux
 
-Bleak is cross-platform and uses BlueZ on Linux, so it is not Windows-only. On Raspberry Pi OS, install the OS Bluetooth pieces first:
+This section is for Linux, including Raspberry Pi OS and DietPi. Do not use the `.bat` files on Linux.
+
+Bleak is cross-platform and uses BlueZ on Linux, so it is not Windows-only. BlueZ is installed as a system package/service.
+
+Run the Linux installer from the repo root:
 
 ```sh
-sudo apt update
-sudo apt install -y bluetooth bluez python3-venv
-sudo systemctl enable --now bluetooth
+sh scripts/install_linux.sh
 ```
 
-Then create the venv with Linux paths:
+The installer uses `python3`, installs Bluetooth/BlueZ, installs the matching venv package such as `python3.11-venv` when available, creates `venv/`, and installs `requirements.txt`.
+
+Then scan for the board:
 
 ```sh
-python3 -m venv venv
-venv/bin/python -m pip install -r requirements.txt
 venv/bin/python scripts/scan_devices.py --save-first-likely
-venv/bin/python app/server.py --host 0.0.0.0
 ```
 
-Open `http://<pi-hostname-or-ip>:8765/` from another device on the same network. If you need UART logging, use `app/server_live.py`; its default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
+Start the web UI without UART, which is the normal Pi path:
+
+```sh
+venv/bin/python app/server_live.py --host 0.0.0.0 --no-uart
+```
+
+Open `http://<pi-hostname-or-ip>:8765/` from another device on the same network.
+
+If port `8765` is already in use, pick another port:
+
+```sh
+venv/bin/python app/server_live.py --host 0.0.0.0 --port 8766 --no-uart
+```
+
+If you need UART logging later, omit `--no-uart`; the default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
 
 ## Pick your device
 
