@@ -2,6 +2,7 @@ package com.lightycoder.doodad;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -14,6 +15,7 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -42,8 +44,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private static final int W = 12;
@@ -54,6 +60,10 @@ public class MainActivity extends Activity {
     private static final int TEXT = Color.rgb(24, 30, 38);
     private static final int MUTED = Color.rgb(91, 101, 113);
     private static final int BLUE = Color.rgb(47, 125, 225);
+    private static final int PURPLE = Color.rgb(119, 92, 232);
+    private static final int RED = Color.rgb(210, 74, 74);
+    private static final String PREFS = "lightycoder";
+    private static final String PREF_DEVICE_ADDRESS = "deviceAddress";
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private BluetoothAdapter adapter;
@@ -61,6 +71,7 @@ public class MainActivity extends Activity {
     private BluetoothGatt gatt;
     private BluetoothGattCharacteristic commandChar;
     private TextView status;
+    private Button scanDisconnectButton;
     private LinearLayout content;
     private GridLayout padGrid;
     private ImageCropView imageCropView;
@@ -73,10 +84,15 @@ public class MainActivity extends Activity {
     private int brightness = 180;
     private boolean multiSelect = true;
     private boolean paintStarted = false;
+    private boolean connected = false;
+    private String selectedDeviceAddress = "";
     private int animationMode = 0;
     private int animationStep = 0;
     private boolean animationRunning = false;
     private int animationDelayMs = 260;
+    private boolean scanInProgress = false;
+    private final Map<String, BluetoothDevice> scannedDevices = new LinkedHashMap<>();
+    private final Map<String, String> scannedDeviceLabels = new LinkedHashMap<>();
 
     private final Runnable animationTick = new Runnable() {
         @Override public void run() {
@@ -93,6 +109,7 @@ public class MainActivity extends Activity {
         BluetoothManager manager = getSystemService(BluetoothManager.class);
         adapter = manager == null ? null : manager.getAdapter();
         scanner = adapter == null ? null : adapter.getBluetoothLeScanner();
+        selectedDeviceAddress = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_DEVICE_ADDRESS, "");
         requestBlePermissions();
         buildShell();
         showPadPage();
@@ -123,10 +140,11 @@ public class MainActivity extends Activity {
         root.addView(status);
 
         LinearLayout top = row();
-        addButton(top, "Connect", v -> scanAndConnect(), 1, BLUE);
+        addButton(top, "Connect", v -> connectSavedDevice(), 1, BLUE);
         addButton(top, "Start Paint", v -> startPaint(), 1, Color.rgb(42, 157, 93));
-        addButton(top, "Disconnect", v -> disconnect(), 1, Color.rgb(210, 74, 74));
+        scanDisconnectButton = addButton(top, "Scan", v -> scanOrDisconnect(), 1, PURPLE);
         root.addView(top);
+        updateScanDisconnectButton();
 
         LinearLayout nav = row();
         addButton(nav, "Pad", v -> showPadPage(), 1, Color.rgb(230, 235, 241));
@@ -169,14 +187,18 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextColor(readableText(color));
         button.setTextSize(13);
         button.setOnClickListener(listener);
-        button.setBackground(rounded(color, dp(1), darker(color), dp(9)));
+        styleButton(button, color);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), weight);
         params.setMargins(dp(3), 0, dp(3), 0);
         parent.addView(button, params);
         return button;
+    }
+
+    private void styleButton(Button button, int color) {
+        button.setTextColor(readableText(color));
+        button.setBackground(rounded(color, dp(1), darker(color), dp(9)));
     }
 
     private GradientDrawable rounded(int fill, int strokeWidth, int stroke, int radius) {
@@ -424,7 +446,47 @@ public class MainActivity extends Activity {
         return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void scanAndConnect() {
+    private void connectSavedDevice() {
+        if (!hasBlePermission()) { requestBlePermissions(); return; }
+        if (adapter == null || !adapter.isEnabled()) {
+            startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS));
+            return;
+        }
+        if (selectedDeviceAddress == null || selectedDeviceAddress.isEmpty()) {
+            toast("Scan to choose an Arcade Coder first");
+            scanForDeviceChoice();
+            return;
+        }
+        try {
+            connectToDevice(adapter.getRemoteDevice(selectedDeviceAddress), "Saved device | " + selectedDeviceAddress);
+        } catch (IllegalArgumentException exc) {
+            selectedDeviceAddress = "";
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(PREF_DEVICE_ADDRESS).apply();
+            toast("Saved device address was invalid");
+            scanForDeviceChoice();
+        }
+    }
+
+    private void scanOrDisconnect() {
+        if (connected) {
+            disconnect();
+        } else {
+            scanForDeviceChoice();
+        }
+    }
+
+    private void updateScanDisconnectButton() {
+        if (scanDisconnectButton == null) return;
+        if (connected) {
+            scanDisconnectButton.setText("Disconnect");
+            styleButton(scanDisconnectButton, RED);
+        } else {
+            scanDisconnectButton.setText("Scan");
+            styleButton(scanDisconnectButton, PURPLE);
+        }
+    }
+
+    private void scanForDeviceChoice() {
         if (!hasBlePermission()) { requestBlePermissions(); return; }
         if (adapter == null || !adapter.isEnabled()) {
             startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS));
@@ -432,12 +494,24 @@ public class MainActivity extends Activity {
         }
         scanner = adapter.getBluetoothLeScanner();
         if (scanner == null) { toast("No BLE scanner"); return; }
+        if (gatt != null) disconnect();
+        scannedDevices.clear();
+        scannedDeviceLabels.clear();
+        scanInProgress = true;
         status.setText("Scanning...");
         scanner.startScan(scanCallback);
         main.postDelayed(() -> {
-            try { scanner.stopScan(scanCallback); } catch (Exception ignored) {}
-            if (gatt == null) status.setText("No Arcade Coder found");
+            if (!scanInProgress) return;
+            stopBleScan();
+            showDevicePicker();
         }, 8000);
+    }
+
+    private void stopBleScan() {
+        scanInProgress = false;
+        if (scanner != null) {
+            try { scanner.stopScan(scanCallback); } catch (Exception ignored) {}
+        }
     }
 
     private final ScanCallback scanCallback = new ScanCallback() {
@@ -449,22 +523,59 @@ public class MainActivity extends Activity {
                 likely = result.getScanRecord().getServiceUuids().toString().toLowerCase(Locale.ROOT).contains(Protocol.SERVICE_UUID.toString());
             }
             if (!likely) return;
-            try { scanner.stopScan(this); } catch (Exception ignored) {}
-            status.setText("Connecting " + (name.isEmpty() ? device.getAddress() : name));
-            gatt = device.connectGatt(MainActivity.this, false, gattCallback);
+            String address = device.getAddress();
+            scannedDevices.put(address, device);
+            scannedDeviceLabels.put(address, (name.isEmpty() ? "Arcade Coder" : name) + " | " + address);
+            status.setText("Found " + scannedDevices.size() + " Arcade Coder device(s)");
         }
     };
+
+    private void showDevicePicker() {
+        if (scannedDevices.isEmpty()) {
+            status.setText("No Arcade Coder found");
+            return;
+        }
+        if (scannedDevices.size() == 1) {
+            String address = scannedDevices.keySet().iterator().next();
+            selectAndConnect(address);
+            return;
+        }
+        List<String> addresses = new ArrayList<>(scannedDevices.keySet());
+        String[] labels = new String[addresses.size()];
+        for (int i = 0; i < addresses.size(); i++) labels[i] = scannedDeviceLabels.get(addresses.get(i));
+        new AlertDialog.Builder(this)
+                .setTitle("Choose Arcade Coder")
+                .setItems(labels, (dialog, which) -> selectAndConnect(addresses.get(which)))
+                .setNegativeButton("Cancel", (dialog, which) -> status.setText("Disconnected"))
+                .show();
+    }
+
+    private void selectAndConnect(String address) {
+        selectedDeviceAddress = address;
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        prefs.edit().putString(PREF_DEVICE_ADDRESS, address).apply();
+        connectToDevice(scannedDevices.get(address), scannedDeviceLabels.get(address));
+    }
+
+    private void connectToDevice(BluetoothDevice device, String label) {
+        if (device == null) { toast("Device unavailable"); return; }
+        if (gatt != null) disconnect();
+        status.setText("Connecting " + label);
+        gatt = device.connectGatt(MainActivity.this, false, gattCallback);
+    }
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override public void onConnectionStateChange(BluetoothGatt g, int statusCode, int newState) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                connected = true;
                 g.requestMtu(517);
                 g.discoverServices();
-                main.post(() -> status.setText("Connected"));
+                main.post(() -> { status.setText("Connected"); updateScanDisconnectButton(); });
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                connected = false;
                 commandChar = null;
                 paintStarted = false;
-                main.post(() -> status.setText("Disconnected"));
+                main.post(() -> { status.setText("Disconnected"); updateScanDisconnectButton(); });
             }
         }
         @Override public void onServicesDiscovered(BluetoothGatt g, int statusCode) {
@@ -481,9 +592,11 @@ public class MainActivity extends Activity {
             gatt.close();
         }
         gatt = null;
+        connected = false;
         commandChar = null;
         paintStarted = false;
         status.setText("Disconnected");
+        updateScanDisconnectButton();
     }
 
     private void startPaint() {
