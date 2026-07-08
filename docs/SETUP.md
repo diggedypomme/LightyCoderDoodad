@@ -49,6 +49,23 @@ sh scripts/run_linux.sh --port 8766
 
 If you need UART logging later, run `venv/bin/python app/server_live.py --host 0.0.0.0` directly; the default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
 
+### Linux Connect Troubleshooting
+
+If scan sees the Arcade Coder but connect fails, clear any stale BlueZ device state and power-cycle the board:
+
+```sh
+bluetoothctl remove 24:0A:C4:4C:E8:E6
+```
+
+Then turn the board off/on, scan again, and restart the UI:
+
+```sh
+venv/bin/python scripts/scan_devices.py --save-first-likely
+sh scripts/run_linux.sh
+```
+
+Replace `24:0A:C4:4C:E8:E6` with the address shown by your scan.
+
 ## Pick your device
 
 Use either the UI scan button or the command line scan tool:

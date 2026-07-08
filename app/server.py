@@ -87,6 +87,7 @@ AURORA_STATUS_URLS = [
 CPU_SAMPLE: tuple[int, int] | None = None
 NET_SAMPLE: tuple[float, int, int] | None = None
 NETWORK_BASE_MBPS = 500.0
+DISCOVERED_BLE_DEVICES: dict[str, object] = {}
 
 
 KNOWN_PIXELS: dict[str, dict[str, object]] = {
@@ -520,6 +521,7 @@ async def scan_ble_devices(timeout: float = 6.0) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for address, pair in devices.items():
         device, adv = pair
+        DISCOVERED_BLE_DEVICES[address.upper()] = device
         name = device.name or adv.local_name or ""
         service_uuids = [uuid.lower() for uuid in (adv.service_uuids or [])]
         likely_arcade = "arcade" in name.lower() or "coder" in name.lower() or "778d5426-fa29-4363-91fd-a9f5cfcfce85" in service_uuids
@@ -596,6 +598,22 @@ class BleSession:
             except Exception:
                 pass
 
+    async def _connect_target(self):
+        cached = DISCOVERED_BLE_DEVICES.get(self.address.upper())
+        if cached is not None:
+            return cached
+        if not sys.platform.startswith("linux"):
+            return self.address
+        self.add_log("address was not in scan cache; scanning briefly before connect")
+        async with RADIO_LOCK:
+            devices = await BleakScanner.discover(timeout=6.0, return_adv=False)
+        for device in devices:
+            if device.address.upper() == self.address.upper():
+                DISCOVERED_BLE_DEVICES[self.address.upper()] = device
+                return device
+        self.add_log("scan cache refresh did not find address; connecting by address only")
+        return self.address
+
     async def ensure_connected(self) -> None:
         if self.is_connected():
             return
@@ -610,7 +628,10 @@ class BleSession:
                 )
             await self._dispose_client()
             self.add_log(f"connecting to {self.address}")
-            client = BleakClient(self.address)
+            target = await self._connect_target()
+            if target is not self.address:
+                self.add_log("using scanned BLE device details for connect")
+            client = BleakClient(target)
             try:
                 async with RADIO_LOCK:
                     await asyncio.wait_for(client.connect(), timeout=CONNECT_TIMEOUT_SECONDS)
@@ -623,7 +644,10 @@ class BleSession:
                     await client.disconnect()
                 except Exception:
                     pass
-                self.add_log(f"connect failed ({exc!r}); cooling down {CONNECT_COOLDOWN_SECONDS:.0f}s")
+                message = f"{type(exc).__name__}: {exc}"
+                self.add_log(f"connect failed ({message}); cooling down {CONNECT_COOLDOWN_SECONDS:.0f}s")
+                if sys.platform.startswith("linux"):
+                    self.add_log("linux hint: if scan sees the board but connect fails, try bluetoothctl remove <address>, power-cycle the board, then scan again")
                 raise
             self.client = client
             self.next_connect_allowed = 0.0
