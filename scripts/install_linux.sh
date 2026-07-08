@@ -54,7 +54,7 @@ echo "Scan for the board:"
 echo "  venv/bin/python scripts/scan_devices.py --save-first-likely"
 echo
 echo "Start the web UI without UART:"
-echo "  venv/bin/python app/server_live.py --host 0.0.0.0 --no-uart"
+echo "  sh scripts/run_linux.sh"
 echo
 echo "If port 8765 is already in use:"
-echo "  venv/bin/python app/server_live.py --host 0.0.0.0 --port 8766 --no-uart"
+echo "  sh scripts/run_linux.sh --port 8766"

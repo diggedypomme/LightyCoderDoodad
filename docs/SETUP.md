@@ -36,7 +36,7 @@ venv/bin/python scripts/scan_devices.py --save-first-likely
 Start the web UI without UART, which is the normal Pi path:
 
 ```sh
-venv/bin/python app/server_live.py --host 0.0.0.0 --no-uart
+sh scripts/run_linux.sh
 ```
 
 Open `http://<pi-hostname-or-ip>:8765/` from another device on the same network.
@@ -44,10 +44,10 @@ Open `http://<pi-hostname-or-ip>:8765/` from another device on the same network.
 If port `8765` is already in use, pick another port:
 
 ```sh
-venv/bin/python app/server_live.py --host 0.0.0.0 --port 8766 --no-uart
+sh scripts/run_linux.sh --port 8766
 ```
 
-If you need UART logging later, omit `--no-uart`; the default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
+If you need UART logging later, run `venv/bin/python app/server_live.py --host 0.0.0.0` directly; the default UART path is `/dev/serial0` on Linux, and you can override it with `--uart-port /dev/ttyUSB0` or another device path.
 
 ## Pick your device
 
