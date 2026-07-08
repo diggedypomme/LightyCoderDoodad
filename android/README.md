@@ -14,7 +14,7 @@ It is deliberately separate from the Python/web UI so both can evolve independen
 - Multi-cell selection.
 - Send selected/generated grid as a compact canvas.
 - Image page that loads from gallery or files, supports centre crop/fit/drag/pinch zoom, has a pixel-preview toggle, downsamples the visible crop to 12x12, and sends it.
-- Animation page with wipe/pulse/rainbow/heart/sparkle/scanner/tetris/snake/comet examples streamed as compact canvases.
+- Animation page with wipe/pulse/rainbow/heart/sparkle/scanner/tetris/snake/comet examples, plus a pasted custom animation runner, all streamed as compact canvases.
 - Animation stop, faster, and slower controls.
 
 ## Prebuilt Debug APK
