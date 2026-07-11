@@ -297,6 +297,13 @@ document.querySelector("#reconnect").addEventListener("click", async () => {
   await refreshStatus();
 });
 
+
+document.querySelector("#recoverBle").addEventListener("click", async () => {
+  addLog("clearing BLE cache and reconnecting...");
+  await api("/api/clear-ble-cache-reconnect", {}, 95000);
+  addLog("BLE cache recovered and reconnected");
+  await refreshStatus();
+});
 document.querySelector("#startPaint").addEventListener("click", async () => {
   await api("/api/start-paint", {}, 11000);
   addLog("sent start paint");
@@ -323,3 +330,4 @@ async function init() {
 }
 
 init().catch((err) => addLog(err.message));
+

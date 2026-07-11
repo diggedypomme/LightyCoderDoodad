@@ -600,6 +600,47 @@ class BleSession:
         await self.ensure_connected()
         self.add_log("reconnect complete")
 
+
+    async def clear_linux_ble_cache_and_reconnect(self) -> list[str]:
+        """Clear a stale BlueZ device entry, then scan and reconnect.
+
+        This is intentionally Linux-only: it fixes the Pi/BlueZ failure mode
+        where scans see the board but Bleak connect fails with a stale
+        dev_XX_XX_XX object.
+        """
+        if not sys.platform.startswith("linux"):
+            raise RuntimeError("BLE cache recovery is only available on Linux/BlueZ")
+        if not re.fullmatch(r"[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}", self.address):
+            raise RuntimeError("refusing to clear BLE cache for invalid address")
+
+        self.add_log("clearing Linux BLE cache...")
+        await self.disconnect()
+        self.next_connect_allowed = 0.0
+        commands = [
+            ["bluetoothctl", "remove", self.address],
+            ["bluetoothctl", "power", "on"],
+        ]
+        output: list[str] = []
+        async with RADIO_LOCK:
+            for command in commands:
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+                stdout, _ = await proc.communicate()
+                text = stdout.decode("utf-8", errors="replace").strip()
+                if text:
+                    output.append(text)
+                if proc.returncode not in (0, 1):
+                    raise RuntimeError(f"{' '.join(command)} failed with exit {proc.returncode}: {text}")
+
+        self.add_log("BLE cache cleared; scanning fresh before reconnect")
+        await scan_ble_devices(6.0)
+        await asyncio.sleep(0.5)
+        await self.ensure_connected()
+        self.add_log("cache recovery reconnect complete")
+        return output
     async def start_builtin(self, module_name: str) -> None:
         await self.ensure_connected()
         await self.write_with_retry(COMMAND_CHAR, CommandMessage.start_builtin(module_name), response=False)
@@ -905,7 +946,9 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/reconnect":
                 STATE.run(session.reconnect(), timeout=60)
                 json_response(self, 200, session.status())
-            elif self.path == "/api/start-paint":
+            elif self.path == "/api/clear-ble-cache-reconnect":
+                output = STATE.run(session.clear_linux_ble_cache_and_reconnect(), timeout=90)
+                json_response(self, 200, {"ok": True, "output": output, "status": session.status()})            elif self.path == "/api/start-paint":
                 STATE.run(session.start_paint())
                 json_response(self, 200, session.status())
             elif self.path == "/api/start-builtin":
@@ -1084,5 +1127,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
