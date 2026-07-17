@@ -292,7 +292,7 @@ document.querySelector("#connect").addEventListener("click", async () => {
 
 document.querySelector("#reconnect").addEventListener("click", async () => {
   addLog("reconnecting...");
-  await api("/api/reconnect", {}, 14000);
+  await api("/api/reconnect", {}, 95000);
   addLog("reconnected");
   await refreshStatus();
 });
@@ -303,6 +303,15 @@ document.querySelector("#recoverBle").addEventListener("click", async () => {
   await api("/api/clear-ble-cache-reconnect", {}, 95000);
   addLog("BLE cache recovered and reconnected");
   await refreshStatus();
+});
+
+document.querySelector("#restartService").addEventListener("click", async () => {
+  addLog("restarting Pi app service...");
+  await api("/api/restart-service", {}, 12000);
+  addLog("restart scheduled; waiting for app to come back...");
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  await refreshStatus();
+  addLog("app service is back");
 });
 document.querySelector("#startPaint").addEventListener("click", async () => {
   await api("/api/start-paint", {}, 11000);

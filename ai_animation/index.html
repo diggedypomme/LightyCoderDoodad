@@ -1,0 +1,2112 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Animation Studio for Arcade Coder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg-color: #0b0813;
+        --card-bg: rgba(20, 16, 32, 0.6);
+        --card-border: rgba(255, 255, 255, 0.08);
+        --text-color: #f1f0f5;
+        --text-muted: #9f9baa;
+        --accent-color: #bd93f9;
+        --accent-glow: rgba(189, 147, 249, 0.4);
+        --success-color: #50fa7b;
+        --error-color: #ff5555;
+        --warning-color: #ffb86c;
+        --grid-size: 12;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        background-image:
+          radial-gradient(circle at 10% 20%, rgba(189, 147, 249, 0.08) 0%, transparent 40%),
+          radial-gradient(circle at 90% 80%, rgba(80, 250, 123, 0.05) 0%, transparent 40%);
+        color: var(--text-color);
+        font-family: 'Outfit', sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow-x: hidden;
+      }
+
+      header {
+        background: rgba(15, 12, 25, 0.8);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--card-border);
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .logo-area {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .logo-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent-color);
+        box-shadow: 0 0 10px var(--accent-color);
+        animation: pulse 2s infinite;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #fff 0%, #bd93f9 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .status-panel {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        font-size: 0.85rem;
+      }
+
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 6px 12px;
+        border-radius: 20px;
+        border: 1px solid var(--card-border);
+      }
+
+      .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-muted);
+      }
+
+      .status-indicator.active {
+        background: var(--success-color);
+        box-shadow: 0 0 8px var(--success-color);
+      }
+
+      .status-indicator.error {
+        background: var(--error-color);
+        box-shadow: 0 0 8px var(--error-color);
+      }
+
+      main {
+        flex: 1;
+        padding: 24px;
+        max-width: 1600px;
+        width: 100%;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 360px 1fr 420px;
+        gap: 24px;
+      }
+
+      @media (max-width: 1300px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: var(--card-bg);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      }
+
+      .card h2 {
+        font-size: 1.15rem;
+        font-weight: 500;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 10px;
+      }
+
+      .card h2 span {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      input[type="text"], select, textarea {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        color: var(--text-color);
+        padding: 10px 12px;
+        font-family: inherit;
+        font-size: 0.9rem;
+        outline: none;
+        transition: all 0.2s ease;
+      }
+
+      input[type="text"]:focus, select:focus, textarea:focus {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 8px var(--accent-glow);
+      }
+
+      .length-options {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .length-btn {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        color: var(--text-muted);
+        padding: 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        font-weight: 500;
+      }
+
+      .length-btn.selected {
+        background: var(--accent-color);
+        color: #000;
+        border-color: var(--accent-color);
+        font-weight: 600;
+        box-shadow: 0 0 10px var(--accent-glow);
+      }
+
+      .btn {
+        background: linear-gradient(135deg, var(--accent-color) 0%, #a370f7 100%);
+        color: #05040a;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 18px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(189, 147, 249, 0.2);
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(189, 147, 249, 0.4);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-color);
+        border: 1px solid var(--card-border);
+        box-shadow: none;
+      }
+
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        box-shadow: none;
+      }
+
+      .btn-danger {
+        background: linear-gradient(135deg, var(--error-color) 0%, #ff3333 100%);
+        color: #fff;
+        box-shadow: 0 4px 15px rgba(255, 85, 85, 0.2);
+      }
+
+      .btn-danger:hover {
+        box-shadow: 0 6px 20px rgba(255, 85, 85, 0.4);
+      }
+
+      .btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .action-buttons-row {
+        display: flex;
+        gap: 10px;
+      }
+
+      .action-buttons-row .btn {
+        flex: 1;
+      }
+
+      .preview-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        flex: 1;
+      }
+
+      .led-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--grid-size), 1fr);
+        grid-template-rows: repeat(var(--grid-size), 1fr);
+        gap: 6px;
+        background: #120e22;
+        padding: 16px;
+        border-radius: 20px;
+        border: 2px solid #221a3f;
+        box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 10px 40px rgba(0,0,0,0.5);
+        width: 440px;
+        height: 440px;
+      }
+
+      .led-cell {
+        aspect-ratio: 1;
+        border-radius: 5px;
+        background: #181528;
+        border: 1px solid rgba(255,255,255,0.02);
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        cursor: pointer;
+        position: relative;
+        transition: all 0.15s ease;
+      }
+
+      .led-cell::after {
+        content: '';
+        position: absolute;
+        top: 20%;
+        left: 20%;
+        width: 34%;
+        height: 24%;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .led-cell.active {
+        box-shadow: 0 0 14px var(--glow-color, rgba(255, 255, 255, 0.5));
+      }
+
+      .playback-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 440px;
+      }
+
+      .control-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+
+      .slider-group {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--card-border);
+      }
+
+      .slider-group input[type="range"] {
+        flex: 1;
+        margin: 0 12px;
+        accent-color: var(--accent-color);
+      }
+
+      .editor-textarea {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        min-height: 280px;
+        resize: vertical;
+        background: #08060f;
+        border-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .validation-badge {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--card-border);
+      }
+
+      .validation-badge.success {
+        border-color: var(--success-color);
+        color: var(--success-color);
+      }
+
+      .validation-badge.error {
+        border-color: var(--error-color);
+        color: var(--error-color);
+        background: rgba(255, 85, 85, 0.05);
+      }
+
+      .validation-error-msg {
+        color: var(--error-color);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        background: rgba(255, 85, 85, 0.05);
+        border: 1px solid rgba(255, 85, 85, 0.2);
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-top: -8px;
+        white-space: pre-wrap;
+        max-height: 120px;
+        overflow-y: auto;
+      }
+
+      .theme-presets {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+
+      .preset-chip {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--card-border);
+        border-radius: 20px;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s ease;
+      }
+
+      .preset-chip:hover {
+        background: rgba(189, 147, 249, 0.15);
+        border-color: var(--accent-color);
+        color: var(--accent-color);
+      }
+
+      .console-log {
+        background: #05040a;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        height: 100px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        color: #a9a9b3;
+      }
+
+      .api-cheatsheet {
+        background: rgba(0,0,0,0.15);
+        border-radius: 8px;
+        padding: 10px;
+        border: 1px solid rgba(255,255,255,0.03);
+      }
+
+      .api-cheatsheet summary, .prompt-customizer summary {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        cursor: pointer;
+        user-select: none;
+        font-weight: 500;
+      }
+
+      .api-cheatsheet pre {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        margin-top: 8px;
+        color: #8be9fd;
+        line-height: 1.4;
+      }
+
+      .prompt-customizer {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 8px;
+        padding: 10px;
+        border: 1px solid rgba(255,255,255,0.04);
+      }
+
+      .prompt-customizer textarea {
+        width: 100%;
+        margin-top: 8px;
+        min-height: 120px;
+        font-size: 0.8rem;
+        font-family: inherit;
+      }
+
+      .loader {
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255,255,255,0.1);
+        border-radius: 50%;
+        border-left-color: var(--accent-color);
+        animation: spin 1s linear infinite;
+        display: inline-block;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(189, 147, 249, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(189, 147, 249, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(189, 147, 249, 0); }
+      }
+
+      /* Custom toggle styling */
+      .toggle-control {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--card-border);
+      }
+
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 22px;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255,255,255,0.1);
+        transition: .3s;
+        border-radius: 34px;
+      }
+
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+      }
+
+      input:checked + .slider {
+        background-color: var(--accent-color);
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(22px);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo-area">
+        <div class="logo-dot"></div>
+        <h1>AI Animation Studio</h1>
+      </div>
+      <div class="status-panel">
+        <div class="status-item">
+          <span>LMStudio:</span>
+          <div id="lmStatusIndicator" class="status-indicator"></div>
+          <span id="lmStatusText">Checking...</span>
+        </div>
+        <div class="status-item">
+          <span>Arcade Coder:</span>
+          <div id="boardStatusIndicator" class="status-indicator"></div>
+          <span id="boardStatusText">Checking...</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- LEFT PANEL: GENERATOR -->
+      <section class="card">
+        <h2>AI Generator <span>LMStudio</span></h2>
+
+        <div class="form-group">
+          <label for="creationMode">Creation Mode</label>
+          <select id="creationMode">
+            <option value="animation">Animation</option>
+            <option value="picture">Picture (single frame)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label id="themeInputLabel" for="themeInput">Animation Theme / Prompt</label>
+          <input type="text" id="themeInput" placeholder="e.g. falling rain, pulse..." value="falling rain">
+        </div>
+
+        <div class="form-group">
+          <label>Complexity / Target Length</label>
+          <div class="length-options">
+            <div class="length-btn" data-length="short">Short</div>
+            <div class="length-btn selected" data-length="medium">Medium</div>
+            <div class="length-btn" data-length="long">Long</div>
+          </div>
+        </div>
+
+        <div class="toggle-control" style="padding: 8px 12px;">
+          <label for="thinkingToggle">Disable Thinking (/no_think)</label>
+          <label class="switch">
+            <input type="checkbox" id="thinkingToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-control" style="padding: 8px 12px;">
+          <label for="aiStreamToggle">Stream AI Response</label>
+          <label class="switch">
+            <input type="checkbox" id="aiStreamToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="action-buttons-row">
+          <button id="generateBtn" class="btn">
+            <span class="btn-text">Generate Animation</span>
+            <span class="btn-spinner" style="display: none;"><span class="loader"></span></span>
+          </button>
+          <button id="cancelBtn" class="btn btn-secondary btn-danger" style="display: none;">Cancel</button>
+        </div>
+
+        <div class="prompt-customizer">
+          <details>
+            <summary>Custom System Prompt</summary>
+            <textarea id="systemPromptEditor" spellcheck="false">You are a code generator for a 12x12 RGB LED matrix animation.
+You must output ONLY raw, executable JavaScript code inside a markdown ```javascript code block.
+Do not write any introductory or concluding text, explanations, or comments.
+
+The JavaScript code runs inside a loop for each frame. The frame index is provided as a global variable `i` (starts at 0 and increments).
+The grid dimensions are 12x12 (W=12, H=12). Coordinate (0,0) is top-left, (11,11) is bottom-right.
+
+You have access to these global helper functions:
+- clear(r, g, b) : clears the grid to RGB.
+- set(x, y, r, g, b) : sets a single LED at (x, y) to RGB.
+- rect(x, y, w, h, r, g, b) : draws a filled rectangle.
+- line(x1, y1, x2, y2, r, g, b) : draws a line.
+- hsv(h, s, v) : converts HSV (H: 0-360, S: 0-1, V: 0-1) to an [r, g, b] array.
+- text(pattern, x, y, r, g, b) : draws custom patterns. e.g. '101|010|101'.
+- fade(factor) : starts frame by dimming previous frame's pixels by factor (e.g. 0.85) to create trails.
+- rand(n) : returns a random float 0..n.
+- state : a persistent object between frames. (e.g., if (!state.x) state.x = 0;).
+
+Tips for drawing shapes/equations:
+- Grid Orientation: (0,0) is top-left, and (11,11) is bottom-right. X increases rightward, Y increases downward.
+- Cartesian Mapping: To map standard Cartesian coordinates where (0,0) is at the center of the grid:
+  - Center constants: cx = 5.5, cy = 5.5.
+  - Relative offsets: dx = x - cx; dy = -(y - cy); (note the negative sign to invert Y so upward is positive).
+  - Domain Scaling: For formulas designed for a [-1, 1] range (like circles, hearts, waves), scale down offsets by dividing by a divisor (e.g. 3.5 to 5.5) so that the shape fits within the 12x12 boundaries: `const dx = (x - 5.5) / 4.0; const dy = -(y - 5.5) / 4.0;`</textarea>
+          </details>
+        </div>
+
+        <div class="form-group">
+          <label>AI Prompt Themes</label>
+          <div class="theme-presets">
+            <div class="preset-chip" data-ai-theme="neon matrix rain">Matrix Rain</div>
+            <div class="preset-chip" data-ai-theme="ocean waves with foam">Ocean Waves</div>
+            <div class="preset-chip" data-ai-theme="pulsing warm fire embers">Fireplace</div>
+            <div class="preset-chip" data-ai-theme="breathing glowing rainbow swirl">Rainbow Swirl</div>
+            <div class="preset-chip" data-ai-theme="conway game of life">Conway Life</div>
+            <div class="preset-chip" data-ai-theme="pulsing red heart beat">Pulsing Heart</div>
+          </div>
+        </div>
+
+        <div class="form-group" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+          <label for="lmModel">LM Studio Model</label>
+          <input type="text" id="lmModel" list="lmModelOptions" value="qwen/qwen3.6-27b" style="font-size: 0.8rem;" autocomplete="off">
+          <datalist id="lmModelOptions"></datalist>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button id="refreshModelsBtn" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.8rem;">Refresh Models</button>
+            <button id="toggleModelReportBtn" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.8rem;">Show Report</button>
+          </div>
+          <div id="modelReport" class="console-log" style="display: none; height: 180px;">No model report loaded.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="lmUrl">LMStudio Endpoint</label>
+          <input type="text" id="lmUrl" value="http://localhost:3000/api/v1/chat" style="font-size: 0.8rem;">
+        </div>
+
+        <div class="form-group">
+          <label>Board Connectivity</label>
+          <div style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(90px, 1fr); gap: 8px; margin-bottom: 8px;">
+            <div>
+              <label for="boardHost" style="font-size: 0.72rem;">Pi hostname or IP</label>
+              <input type="text" id="boardHost" value="192.168.0.87" placeholder="e.g. lightypi.local" style="font-size: 0.8rem;">
+            </div>
+            <div>
+              <label for="boardPort" style="font-size: 0.72rem;">Port</label>
+              <input type="number" id="boardPort" value="8766" min="1" max="65535" style="font-size: 0.8rem;">
+            </div>
+          </div>
+          <button id="saveBoardAddressBtn" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.8rem; margin-bottom: 8px;">Save Board Address</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button id="connectDeviceBtn" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.8rem;">Connect Board</button>
+            <button id="startPaintBtn" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.8rem;">Start Paint</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CENTER PANEL: LED GRID & PLAYBACK -->
+      <section class="preview-container">
+        <div id="ledGrid" class="led-grid">
+          <!-- Cells will be generated dynamically -->
+        </div>
+
+        <div class="playback-controls">
+          <div class="control-buttons">
+            <button id="playBtn" class="btn">Play</button>
+            <button id="stopBtn" class="btn btn-secondary">Stop</button>
+            <button id="stepBtn" class="btn btn-secondary">Step</button>
+            <button id="clearGridBtn" class="btn btn-secondary">Clear</button>
+          </div>
+
+          <div class="slider-group">
+            <label for="fpsSlider">FPS</label>
+            <input type="range" id="fpsSlider" min="1" max="24" value="8">
+            <span id="fpsVal" style="font-family: 'JetBrains Mono', monospace; min-width: 30px; text-align: right;">8</span>
+          </div>
+
+          <div class="slider-group">
+            <label for="frameVal">Frame</label>
+            <span id="frameVal" style="font-family: 'JetBrains Mono', monospace; font-weight: bold; margin-left: 10px; color: var(--accent-color);">0</span>
+            <button id="resetFrameBtn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; margin-left: auto;">Reset</button>
+          </div>
+
+          <div class="toggle-control">
+            <label for="streamToggle" style="color: var(--text-color);">Stream to Physical Arcade Coder</label>
+            <label class="switch">
+              <input type="checkbox" id="streamToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: CODE EDITOR & API REFERENCE -->
+      <section class="card">
+        <h2>Code Editor</h2>
+
+        <div class="form-group" style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+          <label for="codeEditor">JavaScript Animation Script</label>
+          <textarea id="codeEditor" class="editor-textarea" spellcheck="false">// Tiny pet face. Blinks every 8 frames.
+const blink = i % 8 === 0 || i % 8 === 1;
+rect(3, 3, 6, 6, 60, 180, 90);
+set(4, 5, 0, 0, 0);
+set(7, 5, 0, 0, 0);
+if (blink) {
+  line(4, 5, 5, 5, 60, 180, 90);
+  line(7, 5, 8, 5, 60, 180, 90);
+}
+line(5, 7, 6, 8, 0, 0, 0);
+line(6, 8, 7, 7, 0, 0, 0);</textarea>
+        </div>
+
+        <div id="validationBadge" class="validation-badge success">
+          <span id="validationIndicator" style="font-weight: bold;">✔ JS RUNS OK</span>
+          <button id="fixWithAiBtn" class="btn btn-danger" style="padding: 4px 10px; font-size: 0.75rem; display: none;">Fix with AI</button>
+        </div>
+        <div id="validationErrorMsg" class="validation-error-msg" style="display: none;"></div>
+
+        <div class="form-group" style="border: 1px solid var(--card-border); border-radius: 8px; padding: 10px;">
+          <label for="saveNameInput">Saved creations</label>
+          <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px;">
+            <input id="saveNameInput" type="text" placeholder="Name this animation or picture">
+            <button id="saveCreationBtn" class="btn btn-secondary" style="padding: 8px 12px;">Save</button>
+          </div>
+          <select id="savedCreationsSelect">
+            <option value="">No saved creations yet</option>
+          </select>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button id="loadCreationBtn" class="btn btn-secondary" style="padding: 8px 12px;">Load</button>
+            <button id="deleteCreationBtn" class="btn btn-danger" style="padding: 8px 12px;">Delete</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="border: 1px solid var(--card-border); border-radius: 8px; padding: 10px;">
+          <label for="aiRevisionPrompt">Ask AI to revise the current creation</label>
+          <textarea id="aiRevisionPrompt" placeholder="e.g. Make it slower, use blue and purple, keep the same motion, and remove trails." style="min-height: 74px; resize: vertical;"></textarea>
+          <button id="reviseWithAiBtn" class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.8rem;">Revise with AI</button>
+        </div>
+
+        <div class="form-group">
+          <label>Built-in Static Presets</label>
+          <div class="theme-presets" id="staticPresetsContainer">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <div class="api-cheatsheet">
+          <details>
+            <summary>API Cheatsheet & Context</summary>
+            <pre>clear(r, g, b)
+set(x, y, r, g, b)
+rect(x, y, w, h, r, g, b)
+line(x1, y1, x2, y2, r, g, b)
+hsv(h, s, v) -> [r, g, b]
+text(pattern, x, y, r, g, b)
+fade(factor)
+rand(n)
+state (persistent between frames)
+W = 12, H = 12, i = frame index</pre>
+          </details>
+        </div>
+
+        <div class="form-group">
+          <label>Console Output</label>
+          <div id="consoleLog" class="console-log">Initializing AI Animation Studio...</div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // Global parameters
+      const W = 12;
+      const H = 12;
+      let pixels = Array.from({ length: W * H }, () => [0, 0, 0]);
+      let prevPixels = Array.from({ length: W * H }, () => [0, 0, 0]);
+      let cells = [];
+      let animState = {};
+      let frameIndex = 0;
+      let playbackInterval = null;
+      let activeLength = 'medium';
+      let activeFetchAbortController = null;
+      let lastErrorString = '';
+      let isAiGenerating = false;
+      let activeCode = '';
+      let activeCreationMode = 'animation';
+      const SAVED_CREATIONS_KEY = 'aiAnimationStudio.savedCreations.v1';
+
+      // Built-in Static Presets
+      const STATIC_PRESETS = {
+        "Matrix Rain": `// Digital rain with trails
+fade(0.65);
+if (!state.cols) state.cols = Array.from({ length: W }, () => ({ y: rand(H), sp: 0.35 + rand(0.85) }));
+for (let x = 0; x < W; x++) {
+  const c = state.cols[x];
+  c.y += c.sp;
+  if (c.y > H + 4) { c.y = -rand(8); c.sp = 0.35 + rand(0.85); }
+  set(x, c.y, 190, 255, 190);
+  set(x, c.y - 1, 0, 200, 60);
+}`,
+        "Bouncy Ball": `// Ball with gravity, trails & floor line
+fade(0.5);
+if (!state.ball) state.ball = { x: 2, y: 2, vx: 0.5, vy: 0 };
+const b = state.ball;
+b.vy += 0.12; b.x += b.vx; b.y += b.vy;
+if (b.x < 0.5) { b.x = 0.5; b.vx = Math.abs(b.vx); }
+if (b.x > 10.5) { b.x = 10.5; b.vx = -Math.abs(b.vx); }
+let squash = false;
+if (b.y >= 10) { b.y = 10; b.vy = -Math.abs(b.vy) * 0.97 - 0.08; squash = true; }
+const [r, g, bl] = hsv((i * 7) % 360, 1, 1);
+line(0, 11, 11, 11, 50, 50, 70);
+if (squash) rect(Math.round(b.x) - 1, 10, 3, 1, r, g, bl);
+else { set(b.x, b.y, r, g, bl); set(b.x, b.y - 1, r * 0.4, g * 0.4, bl * 0.4); }`,
+        "Fireplace": `// Heat simulation rising from below
+if (!state.heat) state.heat = new Array(W * H).fill(0);
+const heat = state.heat;
+for (let x = 0; x < W; x++) heat[(H - 1) * W + x] = 140 + rand(115);
+heat[(H - 1) * W + Math.floor(rand(W))] = 255;
+for (let y = 0; y < H - 1; y++) {
+  for (let x = 0; x < W; x++) {
+    const sx = Math.max(0, Math.min(W - 1, x + Math.floor(rand(3)) - 1));
+    heat[y * W + x] = Math.max(0, heat[(y + 1) * W + sx] - 6 - rand(26));
+  }
+}
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const h = heat[y * W + x];
+    if (h > 15) set(x, y, Math.min(255, h * 1.7), Math.max(0, (h - 80) * 1.6), Math.max(0, (h - 190) * 3));
+  }
+}`,
+        "Rainbow Swirl": `// Circular polar sweep rotation
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const a = Math.atan2(y - 5.5, x - 5.5);
+    const dist = Math.hypot(x - 5.5, y - 5.5);
+    const [r, g, b] = hsv(((a / Math.PI) * 180 + dist * 30 - i * 14 + 1080) % 360, 1, 1);
+    set(x, y, r, g, b);
+  }
+}`,
+        "Ocean Waves": `// Double sine rolling ocean
+for (let x = 0; x < W; x++) {
+  const s = Math.sin((x + i * 0.8) / 2.2) * 1.4 + Math.sin((x - i * 0.5) / 3.1) * 1.1;
+  const top = Math.round(5 + s);
+  for (let y = Math.max(0, top); y < H; y++) {
+    const depth = (y - top) / ((H - top) || 1);
+    set(x, y, 10 * (1 - depth), 60 + 110 * (1 - depth), 150 + 90 * (1 - depth));
+  }
+  if ((x + i) % 5 === 0) set(x, top, 235, 245, 255);
+}`,
+        "Conway Life": `// Conway's Game of Life (wraps edges)
+const reseed = () => Array.from({ length: W * H }, () => (rand(1) < 0.3 ? 1 : 0));
+if (!state.cells) state.cells = reseed();
+const cur = state.cells;
+const next = new Array(W * H).fill(0);
+let alive = 0;
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx || dy) n += cur[((y + dy + H) % H) * W + ((x + dx + W) % W)];
+      }
+    }
+    const on = cur[y * W + x] ? n === 2 || n === 3 : n === 3;
+    if (on) {
+      next[y * W + x] = 1;
+      alive += 1;
+      const [r, g, b] = hsv((x * 10 + y * 10 + i * 3) % 360, 0.75, 1);
+      set(x, y, r, g, b);
+    }
+  }
+}
+state.cells = alive < 6 || i % 120 === 119 ? reseed() : next;`
+      };
+
+      // DOM Elements
+      const ledGrid = document.getElementById('ledGrid');
+      const themeInput = document.getElementById('themeInput');
+      const generateBtn = document.getElementById('generateBtn');
+      const cancelBtn = document.getElementById('cancelBtn');
+      const lmModel = document.getElementById('lmModel');
+      const lmModelOptions = document.getElementById('lmModelOptions');
+      const refreshModelsBtn = document.getElementById('refreshModelsBtn');
+      const toggleModelReportBtn = document.getElementById('toggleModelReportBtn');
+      const modelReport = document.getElementById('modelReport');
+      const lmUrl = document.getElementById('lmUrl');
+      const boardHost = document.getElementById('boardHost');
+      const boardPort = document.getElementById('boardPort');
+      const saveBoardAddressBtn = document.getElementById('saveBoardAddressBtn');
+      const connectDeviceBtn = document.getElementById('connectDeviceBtn');
+      const startPaintBtn = document.getElementById('startPaintBtn');
+      const playBtn = document.getElementById('playBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const stepBtn = document.getElementById('stepBtn');
+      const clearGridBtn = document.getElementById('clearGridBtn');
+      const fpsSlider = document.getElementById('fpsSlider');
+      const fpsVal = document.getElementById('fpsVal');
+      const frameVal = document.getElementById('frameVal');
+      const resetFrameBtn = document.getElementById('resetFrameBtn');
+      const streamToggle = document.getElementById('streamToggle');
+      const codeEditor = document.getElementById('codeEditor');
+      const validationBadge = document.getElementById('validationBadge');
+      const validationIndicator = document.getElementById('validationIndicator');
+      const validationErrorMsg = document.getElementById('validationErrorMsg');
+      const fixWithAiBtn = document.getElementById('fixWithAiBtn');
+      const aiRevisionPrompt = document.getElementById('aiRevisionPrompt');
+      const reviseWithAiBtn = document.getElementById('reviseWithAiBtn');
+      const consoleLog = document.getElementById('consoleLog');
+      const lmStatusIndicator = document.getElementById('lmStatusIndicator');
+      const lmStatusText = document.getElementById('lmStatusText');
+      const boardStatusIndicator = document.getElementById('boardStatusIndicator');
+      const boardStatusText = document.getElementById('boardStatusText');
+      const thinkingToggle = document.getElementById('thinkingToggle');
+      const aiStreamToggle = document.getElementById('aiStreamToggle');
+      const systemPromptEditor = document.getElementById('systemPromptEditor');
+      const staticPresetsContainer = document.getElementById('staticPresetsContainer');
+      const creationMode = document.getElementById('creationMode');
+      const themeInputLabel = document.getElementById('themeInputLabel');
+      const saveNameInput = document.getElementById('saveNameInput');
+      const saveCreationBtn = document.getElementById('saveCreationBtn');
+      const savedCreationsSelect = document.getElementById('savedCreationsSelect');
+      const loadCreationBtn = document.getElementById('loadCreationBtn');
+      const deleteCreationBtn = document.getElementById('deleteCreationBtn');
+
+      // Initialize LED cell DOM elements
+      function createLedGrid() {
+        ledGrid.innerHTML = '';
+        cells = [];
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'led-cell';
+            cell.id = `led-${x}-${y}`;
+            cell.title = `(${x}, ${y})`;
+            ledGrid.appendChild(cell);
+            cells.push(cell);
+          }
+        }
+      }
+
+      // Populate pre-done static presets in UI
+      function populateStaticPresets() {
+        staticPresetsContainer.innerHTML = '';
+        Object.keys(STATIC_PRESETS).forEach(name => {
+          const chip = document.createElement('div');
+          chip.className = 'preset-chip';
+          chip.textContent = name;
+          chip.addEventListener('click', () => {
+            codeEditor.value = STATIC_PRESETS[name];
+            logToConsole(`Loaded Static Preset: ${name}`);
+            validateScript();
+            stopAnimation();
+            playAnimation();
+          });
+          staticPresetsContainer.appendChild(chip);
+        });
+      }
+
+      // Log messages to custom terminal pane
+      function logToConsole(message) {
+        const time = new Date().toLocaleTimeString();
+        consoleLog.textContent = `[${time}] ${message}\n` + consoleLog.textContent;
+      }
+
+      // RGB conversion utility (clamps channel value to 0-255)
+      function clampByte(val) {
+        return Math.max(0, Math.min(255, Math.round(Number(val) || 0)));
+      }
+
+      // API: Clear grid
+      function clear(r = 0, g = 0, b = 0) {
+        const rgb = [clampByte(r), clampByte(g), clampByte(b)];
+        for (let n = 0; n < pixels.length; n++) {
+          pixels[n] = [...rgb];
+        }
+      }
+
+      // API: Set grid pixel
+      function set(x, y, r, g, b) {
+        const xx = Math.round(x);
+        const yy = Math.round(y);
+        if (xx < 0 || yy < 0 || xx >= W || yy >= H) return;
+        pixels[yy * W + xx] = [clampByte(r), clampByte(g), clampByte(b)];
+      }
+
+      // API: Draw rectangle
+      function rect(x, y, w, h, r, g, b) {
+        for (let yy = y; yy < y + h; yy++) {
+          for (let xx = x; xx < x + w; xx++) {
+            set(xx, yy, r, g, b);
+          }
+        }
+      }
+
+      // API: Draw line (Bresenham's algorithm)
+      function line(x0, y0, x1, y1, r, g, b) {
+        let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        let err = dx + dy;
+        while (true) {
+          set(x0, y0, r, g, b);
+          if (x0 === x1 && y0 === y1) break;
+          const e2 = 2 * err;
+          if (e2 >= dy) { err += dy; x0 += sx; }
+          if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+      }
+
+      // API: HSV to RGB color converter
+      function hsv(h, s, v) {
+        const c = v * s;
+        const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+        const m = v - c;
+        let rgb = [0, 0, 0];
+        if (h < 60) rgb = [c, x, 0];
+        else if (h < 120) rgb = [x, c, 0];
+        else if (h < 180) rgb = [0, c, x];
+        else if (h < 240) rgb = [0, x, c];
+        else if (h < 300) rgb = [x, 0, c];
+        else rgb = [c, 0, x];
+        return rgb.map((channel) => clampByte((channel + m) * 255));
+      }
+
+      // API: Draw custom text block patterns
+      function text(pattern, x, y, r, g, b) {
+        const rows = String(pattern).split("|");
+        rows.forEach((row, yy) => {
+          [...row].forEach((ch, xx) => {
+            if (ch !== "0" && ch !== "." && ch !== " ") {
+              set(x + xx, y + yy, r, g, b);
+            }
+          });
+        });
+      }
+
+      // API: Fade/trail effect
+      function fade(factor = 0.7) {
+        for (let n = 0; n < pixels.length; n++) {
+          pixels[n] = prevPixels[n].map((val) => Math.max(0, Math.floor(val * factor)));
+        }
+      }
+
+      // API: Random value helper
+      function rand(n = 1) {
+        return Math.random() * n;
+      }
+
+      // Update the 12x12 grid visualization in UI
+      function renderLedGrid() {
+        pixels.forEach((rgb, index) => {
+          const lit = rgb.some((val) => val > 0);
+          const cell = cells[index];
+          if (lit) {
+            cell.classList.add('active');
+            const glowColor = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.8)`;
+            cell.style.background = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            cell.style.setProperty('--glow-color', glowColor);
+            cell.style.boxShadow = `0 0 16px rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]}), inset 0 1px 2px rgba(255,255,255,0.25)`;
+          } else {
+            cell.classList.remove('active');
+            cell.style.background = '';
+            cell.style.boxShadow = '';
+          }
+        });
+      }
+
+      // Run code for a specific frame index
+      function executeFrame(i) {
+        try {
+          clear();
+          const source = activeCode || codeEditor.value;
+          const fn = new Function(
+            "W", "H", "i", "frame", "clear", "set", "rect", "line", "hsv", "text", "state", "fade", "rand",
+            `const t=i; { ${source} }`
+          );
+          fn(W, H, i, i, clear, set, rect, line, hsv, text, animState, fade, rand);
+          prevPixels = pixels.map((p) => [...p]);
+          renderLedGrid();
+          frameVal.textContent = String(i);
+        } catch (err) {
+          logToConsole(`Execution Error: ${err.message}`);
+          stopAnimation();
+          validationBadge.className = 'validation-badge error';
+          validationIndicator.textContent = '❌ EXECUTION ERROR';
+          validationErrorMsg.textContent = `${err.stack || err.message}`;
+          validationErrorMsg.style.display = 'block';
+          fixWithAiBtn.style.display = 'inline-block';
+          lastErrorString = err.message + '\n' + err.stack;
+        }
+      }
+
+      // Perform a full validation check on script (Syntax & Runtime checks)
+      function validateScript(source = codeEditor.value, updateUi = true) {
+        try {
+          // Syntax compilation check
+          const fn = new Function(
+            "W", "H", "i", "frame", "clear", "set", "rect", "line", "hsv", "text", "state", "fade", "rand",
+            `const t=i; { ${source} }`
+          );
+
+          // Runtime execution check with dummy environment
+          let testState = {};
+          let testPixels = Array.from({ length: W * H }, () => [0, 0, 0]);
+          let testPrevPixels = Array.from({ length: W * H }, () => [0, 0, 0]);
+
+          const dummyClear = (r = 0, g = 0, b = 0) => {
+            const rgb = [clampByte(r), clampByte(g), clampByte(b)];
+            for (let n = 0; n < testPixels.length; n++) testPixels[n] = [...rgb];
+          };
+          const dummySet = (x, y, r, g, b) => {
+            const xx = Math.round(x);
+            const yy = Math.round(y);
+            if (xx >= 0 && xx < W && yy >= 0 && yy < H) {
+              testPixels[yy * W + xx] = [clampByte(r), clampByte(g), clampByte(b)];
+            }
+          };
+          const dummyRect = (x, y, w, h, r, g, b) => {
+            for (let yy = y; yy < y + h; yy++) {
+              for (let xx = x; xx < x + w; xx++) dummySet(xx, yy, r, g, b);
+            }
+          };
+          const dummyLine = (x0, y0, x1, y1, r, g, b) => {
+            let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+            let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+            let err = dx + dy;
+            while (true) {
+              dummySet(x0, y0, r, g, b);
+              if (x0 === x1 && y0 === y1) break;
+              const e2 = 2 * err;
+              if (e2 >= dy) { err += dy; x0 += sx; }
+              if (e2 <= dx) { err += dx; y0 += sy; }
+            }
+          };
+          const dummyHsv = (h, s, v) => [255, 255, 255];
+          const dummyText = (pattern, x, y, r, g, b) => {
+            const rows = String(pattern).split("|");
+            rows.forEach((row, yy) => {
+              [...row].forEach((ch, xx) => {
+                if (ch !== "0" && ch !== "." && ch !== " ") dummySet(x + xx, y + yy, r, g, b);
+              });
+            });
+          };
+          const dummyFade = (factor = 0.7) => {
+            for (let n = 0; n < testPixels.length; n++) {
+              testPixels[n] = testPrevPixels[n].map((val) => Math.max(0, Math.floor(val * factor)));
+            }
+          };
+          const dummyRand = (n = 1) => Math.random() * n;
+
+          // Run validation for 5 test frames to identify runtime loops, type issues
+          for (let f = 0; f < 5; f++) {
+            fn(W, H, f, f, dummyClear, dummySet, dummyRect, dummyLine, dummyHsv, dummyText, testState, dummyFade, dummyRand);
+            testPrevPixels = testPixels.map((p) => [...p]);
+          }
+
+          if (updateUi) {
+            validationBadge.className = 'validation-badge success';
+            validationIndicator.textContent = '✔ JS RUNS OK';
+            validationErrorMsg.style.display = 'none';
+            validationErrorMsg.textContent = '';
+            fixWithAiBtn.style.display = 'none';
+          }
+          return true;
+        } catch (err) {
+          if (updateUi) {
+            validationBadge.className = 'validation-badge error';
+            validationIndicator.textContent = '❌ JS SCRIPT ERROR';
+            validationErrorMsg.textContent = `${err.stack || err.message}`;
+            validationErrorMsg.style.display = 'block';
+            fixWithAiBtn.style.display = 'inline-block';
+            lastErrorString = err.message + '\n' + err.stack;
+          }
+          return false;
+        }
+      }
+
+      // Send current frame array to physical hardware board
+      async function sendFrameToBoard() {
+        if (!streamToggle.checked) return;
+        try {
+          // BGR layout is required by the board server
+          const bgrMappedPixels = pixels.map((rgb) => [rgb[2], rgb[1], rgb[0]]);
+          const response = await fetch('/api/board/send-frame', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              width: W,
+              height: H,
+              pixels: bgrMappedPixels,
+              startIfNeeded: false
+            })
+          });
+          const data = await response.json();
+          if (!response.ok || data.ok === false) {
+            throw new Error(data.error || 'Failed sending RGB frame to device');
+          }
+        } catch (err) {
+          logToConsole(`Board Send Error: ${err.message}`);
+          streamToggle.checked = false; // Disable auto stream on failure
+        }
+      }
+
+      // Play / Playback loops
+      function playAnimation() {
+        if (!validateScript(codeEditor.value)) {
+          logToConsole("Cannot play animation: Script has errors.");
+          return;
+        }
+        activeCode = codeEditor.value;
+        activeCreationMode = 'animation';
+        stopAnimation();
+        const fps = Number(fpsSlider.value) || 8;
+        playbackInterval = setInterval(async () => {
+          executeFrame(frameIndex);
+          await sendFrameToBoard();
+          frameIndex++;
+        }, 1000 / fps);
+        playBtn.textContent = 'Pause';
+        playBtn.classList.remove('btn-secondary');
+        logToConsole(`Playback started at ${fps} FPS`);
+      }
+
+      function pauseAnimation() {
+        clearInterval(playbackInterval);
+        playbackInterval = null;
+        playBtn.textContent = 'Play';
+        logToConsole("Playback paused");
+      }
+
+      function stopAnimation() {
+        clearInterval(playbackInterval);
+        playbackInterval = null;
+        playBtn.textContent = 'Play';
+        frameIndex = 0;
+        animState = {};
+        prevPixels = Array.from({ length: W * H }, () => [0, 0, 0]);
+        frameVal.textContent = '0';
+        logToConsole("Playback stopped");
+      }
+
+      const BOARD_SETTINGS_KEY = 'lightyCoderBoardAddress';
+
+      async function saveBoardAddress(showMessage = true) {
+        const settings = {
+          boardHost: boardHost.value.trim(),
+          boardPort: Number(boardPort.value)
+        };
+        const response = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings)
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Could not save board address');
+
+        boardHost.value = data.boardHost;
+        boardPort.value = data.boardPort;
+        localStorage.setItem(BOARD_SETTINGS_KEY, JSON.stringify(settings));
+        if (showMessage) logToConsole(`Board server set to ${data.boardUrl}`);
+        return data;
+      }
+
+      async function loadBoardAddress() {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        let settings = null;
+        try {
+          settings = JSON.parse(localStorage.getItem(BOARD_SETTINGS_KEY) || 'null');
+        } catch (_) {
+          localStorage.removeItem(BOARD_SETTINGS_KEY);
+        }
+
+        boardHost.value = settings?.boardHost || config.boardHost || '';
+        boardPort.value = settings?.boardPort || config.boardPort || 8765;
+        if (settings) await saveBoardAddress(false);
+      }
+
+      // Check external system configuration/connectivity status
+      async function checkStatuses() {
+        // 1. Check LMStudio status
+        try {
+          const response = await fetch('/api/config');
+          const config = await response.json();
+          const modelName = lmModel.value;
+          lmStatusIndicator.className = 'status-indicator active';
+          lmStatusText.textContent = `${modelName}`;
+        } catch (e) {
+          lmStatusIndicator.className = 'status-indicator error';
+          lmStatusText.textContent = 'Offline';
+        }
+
+        // 2. Check Board status
+        try {
+          const response = await fetch('/api/board/status');
+          const status = await response.json();
+          if (status.connected) {
+            boardStatusIndicator.className = 'status-indicator active';
+            boardStatusText.textContent = `Connected (${status.address.slice(-5)})`;
+          } else {
+            boardStatusIndicator.className = 'status-indicator error';
+            boardStatusText.textContent = 'Not Connected';
+          }
+        } catch (e) {
+          boardStatusIndicator.className = 'status-indicator error';
+          boardStatusText.textContent = 'Offline';
+        }
+      }
+
+      // Abort active fetch call
+      function cancelActiveRequest() {
+        if (activeFetchAbortController) {
+          activeFetchAbortController.abort();
+          activeFetchAbortController = null;
+          logToConsole("Request cancelled by user.");
+          resetGenerationBtnState();
+        }
+      }
+
+      function resetGenerationBtnState() {
+        generateBtn.disabled = false;
+        document.querySelector('.btn-text').textContent = 'Generate Animation';
+        document.querySelector('.btn-spinner').style.display = 'none';
+        cancelBtn.style.display = 'none';
+      }
+
+      // Helper to clean and parse JS block from LLM response
+      function parseJsFromResponse(textResult) {
+        let cleanedCode = textResult;
+
+        // Unescape literal \n, \t, and quote characters if double-escaped
+        cleanedCode = cleanedCode
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"')
+          .replace(/\\'/g, "'");
+
+        const jsBlockRegex = /```javascript([\s\S]*?)```/g;
+        const match = jsBlockRegex.exec(cleanedCode);
+        if (match && match[1]) {
+          cleanedCode = match[1].trim();
+        } else {
+          // Reset regex index for safety
+          jsBlockRegex.lastIndex = 0;
+          const genericBlockRegex = /```([\s\S]*?)```/g;
+          const genMatch = genericBlockRegex.exec(cleanedCode);
+          if (genMatch && genMatch[1]) {
+            cleanedCode = genMatch[1].trim();
+          }
+        }
+        cleanedCode = cleanedCode.replace(/^```javascript\s*/i, '').replace(/```$/, '').trim();
+        return cleanedCode;
+      }
+
+      // Extract text from LM Studio/OpenAI-compatible streaming events.
+      function extractStreamText(evt) {
+        return evt?.choices?.[0]?.delta?.content
+          ?? evt?.choices?.[0]?.message?.content
+          ?? evt?.choices?.[0]?.text
+          ?? evt?.delta?.content
+          ?? evt?.delta
+          ?? evt?.content
+          ?? evt?.output_text
+          ?? evt?.text
+          ?? '';
+      }
+
+      function showGeneratingState(message = 'AI IS GENERATING…') {
+        validationBadge.className = 'validation-badge';
+        validationIndicator.textContent = `⏳ ${message}`;
+        validationErrorMsg.style.display = 'none';
+        validationErrorMsg.textContent = '';
+        fixWithAiBtn.style.display = 'none';
+      }
+
+      // Generate animation script using LMStudio AI models
+      async function generateAnimation() {
+        const theme = themeInput.value.trim();
+        if (!theme) {
+          logToConsole("Error: Please provide a theme/prompt.");
+          return;
+        }
+
+        isAiGenerating = true;
+        const requestedMode = creationMode.value;
+        showGeneratingState(aiStreamToggle.checked ? 'STREAMING NEW CODE… CURRENT CREATION STILL PLAYING' : 'GENERATING NEW CODE… CURRENT CREATION STILL PLAYING');
+        generateBtn.disabled = true;
+        cancelBtn.style.display = 'inline-block';
+        document.querySelector('.btn-text').textContent = 'Generating...';
+        document.querySelector('.btn-spinner').style.display = 'inline-block';
+        logToConsole(`Generating '${theme}' ${requestedMode} via AI (${activeLength} length). Current creation remains active...`);
+
+        activeFetchAbortController = new AbortController();
+
+        let systemPrompt = systemPromptEditor.value.trim();
+        let instructions = `Instructions for active complexity length '${activeLength}':
+- If 'short': Make a simple single-formula animation (e.g., simple sine wave, blinking). Keep it brief, under 15 lines.
+- If 'medium': Implement a moderate pattern with standard physics or looping particle arrays. Keep it around 20-35 lines.
+- If 'long': Construct a highly detailed simulation (e.g., metaballs, multiple moving trails, fire with custom heat physics, complex snake or game of life rules). Keep it around 40-70 lines.`;
+
+        if (thinkingToggle.checked) {
+          instructions = `/no_think\n${instructions}`;
+        }
+
+        if (requestedMode === 'picture') {
+          systemPrompt += `\n\nPICTURE MODE: Generate one static 12x12 pixel-art image. Draw the complete image every execution. Do not use i, frame, animation state, fade, motion, trails, or time-based changes. Prefer clear(), set(), rect(), line(), and text().`;
+          instructions = `Create a clear, attractive single-frame pixel-art picture that is readable on a 12x12 RGB LED grid. Use strong silhouettes and limited colors.`;
+        }
+
+        const inputPrompt = `${instructions}\n\nProvide the ${requestedMode === 'picture' ? 'static picture' : 'animation'} code for: ${theme}`;
+
+        try {
+          const streamRequested = aiStreamToggle.checked;
+          const payload = {
+            model: lmModel.value,
+            system_prompt: systemPrompt,
+            input: inputPrompt,
+            stream: streamRequested
+          };
+          logToConsole(streamRequested ? "AI response mode: streaming" : "AI response mode: standard JSON");
+          if (thinkingToggle.checked) {
+            logToConsole("Thinking disabled with the Qwen /no_think prompt command.");
+          }
+
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: activeFetchAbortController.signal
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${response.status}`);
+          }
+
+          const contentType = response.headers.get('content-type') || '';
+          let fullText = '';
+
+          if (streamRequested) {
+            if (!response.body) throw new Error('Streaming response has no readable body');
+
+            logToConsole(`Streaming response received (${contentType || 'unknown content type'})...`);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let streamBuffer = '';
+            codeEditor.value = '';
+
+            const consumeLine = (line) => {
+              let raw = line.trim();
+              if (!raw || raw.startsWith(':') || raw.startsWith('event:')) return false;
+              if (raw.startsWith('data:')) raw = raw.slice(5).trim();
+              if (!raw) return false;
+              if (raw === '[DONE]') return true;
+
+              try {
+                const evt = JSON.parse(raw);
+                const delta = extractStreamText(evt);
+                if (typeof delta === 'string' && delta) {
+                  fullText += delta;
+                  codeEditor.value = fullText;
+                  codeEditor.scrollTop = codeEditor.scrollHeight;
+                }
+              } catch (_) {
+                // Some servers may emit plain text chunks rather than JSON events.
+                fullText += raw;
+                codeEditor.value = fullText;
+              }
+              return false;
+            };
+
+            let streamDone = false;
+            while (!streamDone) {
+              const { done, value } = await reader.read();
+              streamBuffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+              const lines = streamBuffer.split(/\r?\n/);
+              streamBuffer = lines.pop() || '';
+              for (const line of lines) {
+                if (consumeLine(line)) { streamDone = true; break; }
+              }
+              if (done) {
+                if (streamBuffer.trim()) consumeLine(streamBuffer);
+                break;
+              }
+            }
+            logToConsole(`Stream complete (${fullText.length} chars). Parsing...`);
+          } else {
+            logToConsole("Response received (standard JSON). Parsing...");
+            const data = await response.json();
+            if (data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+
+            if (data.choices?.[0]?.message?.content) {
+              fullText = data.choices[0].message.content;
+            } else if (data.choices?.[0]?.text) {
+              fullText = data.choices[0].text;
+            } else if (data.content) {
+              fullText = data.content;
+            } else if (data.output) {
+              fullText = typeof data.output === 'string' ? data.output : JSON.stringify(data.output);
+            } else {
+              fullText = JSON.stringify(data);
+            }
+          }
+
+          const cleanedCode = parseJsFromResponse(fullText);
+          codeEditor.value = cleanedCode;
+          logToConsole(`New ${requestedMode} code received. Validating before activation...`);
+
+          if (!validateScript(cleanedCode)) {
+            throw new Error('The generated code did not validate. The previous creation is still active.');
+          }
+
+          activeCode = cleanedCode;
+          activeCreationMode = requestedMode;
+          animState = {};
+          frameIndex = 0;
+          prevPixels = Array.from({ length: W * H }, () => [0, 0, 0]);
+
+          if (requestedMode === 'picture') {
+            pauseAnimation();
+            executeFrame(0);
+            await sendFrameToBoard();
+            logToConsole('Picture activated as a single static frame.');
+          } else if (playbackInterval) {
+            logToConsole('New animation activated without interrupting playback.');
+          } else {
+            playAnimation();
+          }
+
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            logToConsole("Generation aborted.");
+          } else {
+            logToConsole(`Generation Error: ${err.message}`);
+          }
+        } finally {
+          isAiGenerating = false;
+          activeFetchAbortController = null;
+          resetGenerationBtnState();
+          if (!codeEditor.value.trim() && !activeCode.trim()) {
+            validationBadge.className = 'validation-badge error';
+            validationIndicator.textContent = '❌ NO CODE RECEIVED';
+          }
+        }
+      }
+
+      // Self-healing feature: Ask AI to fix validation errors
+      async function fixAnimationWithAi() {
+        if (!lastErrorString) {
+          logToConsole("No active errors to fix.");
+          return;
+        }
+
+        fixWithAiBtn.disabled = true;
+        fixWithAiBtn.textContent = 'Fixing...';
+        logToConsole("Attempting self-healing of script error via AI...");
+
+        activeFetchAbortController = new AbortController();
+        const faultyCode = codeEditor.value;
+
+        const systemPrompt = `You are an expert debugger and developer for a 12x12 LED animation board.
+Your only job is to fix errors in the provided JavaScript code.
+You must output ONLY raw, corrected, executable JavaScript code inside a markdown \`\`\`javascript code block.
+Do not write any introductory or concluding text, explanations, or comments. Use ONLY valid JS and the available helper functions.`;
+
+        let inputPrompt = `The following JavaScript code is throwing an error during execution:
+
+---
+${faultyCode}
+---
+
+Error details:
+${lastErrorString}
+
+Please fix the error. Make sure to only use the available global helpers: set(x, y, r, g, b), rect(x, y, w, h, r, g, b), line(x1, y1, x2, y2, r, g, b), clear(r, g, b), hsv(h, s, v), text(pattern, x, y, r, g, b), fade(factor), rand(n), state, W, H, i. Make sure the variables you use are defined.`;
+
+        if (thinkingToggle.checked) {
+          inputPrompt = `/no_think\n${inputPrompt}`;
+        }
+
+        try {
+          const payload = {
+            model: lmModel.value,
+            system_prompt: systemPrompt,
+            input: inputPrompt,
+            stream: false
+          };
+
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: activeFetchAbortController.signal
+          });
+
+          const data = await response.json();
+          if (!response.ok || data.error) {
+            throw new Error(data.error || 'Failed debugging animation script');
+          }
+
+          let textResult = '';
+          if (data.choices && data.choices[0] && data.choices[0].message) {
+            textResult = data.choices[0].message.content;
+          } else if (data.content) {
+            textResult = data.content;
+          } else {
+            textResult = JSON.stringify(data);
+          }
+
+          const cleanedCode = parseJsFromResponse(textResult);
+
+          codeEditor.value = cleanedCode;
+          logToConsole("Correction received and applied. Validating script...");
+
+          if (validateScript(cleanedCode)) {
+            activeCode = cleanedCode;
+            animState = {};
+            frameIndex = 0;
+            logToConsole("Self-healing successful! Corrected creation activated.");
+            if (activeCreationMode === 'picture') {
+              pauseAnimation();
+              executeFrame(0);
+              await sendFrameToBoard();
+            } else if (!playbackInterval) {
+              playAnimation();
+            }
+          } else {
+            logToConsole("AI attempt to fix did not resolve the error. See new stack details.");
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            logToConsole("Fix attempt aborted.");
+          } else {
+            logToConsole(`Self-Healing Error: ${err.message}`);
+          }
+        } finally {
+          activeFetchAbortController = null;
+          fixWithAiBtn.disabled = false;
+          fixWithAiBtn.textContent = 'Fix with AI';
+        }
+      }
+
+      // Apply a user-requested change to the current animation via AI.
+      async function reviseAnimationWithAi() {
+        const request = aiRevisionPrompt.value.trim();
+        const currentCode = codeEditor.value.trim();
+        if (!request) {
+          logToConsole('Enter a revision request first.');
+          aiRevisionPrompt.focus();
+          return;
+        }
+        if (!currentCode) {
+          logToConsole('There is no animation code to revise.');
+          return;
+        }
+
+        isAiGenerating = true;
+        showGeneratingState('AI IS REVISING… CURRENT CREATION STILL PLAYING');
+        reviseWithAiBtn.disabled = true;
+        reviseWithAiBtn.textContent = 'Revising...';
+        activeFetchAbortController = new AbortController();
+
+        const systemPrompt = `You are an expert JavaScript developer for a 12x12 RGB LED animation board.
+Modify the supplied animation according to the user's request while preserving everything they did not ask to change.
+Output ONLY corrected executable JavaScript inside a markdown \`\`\`javascript code block.
+Do not include explanations. Use only: clear, set, rect, line, hsv, text, fade, rand, state, W, H, i.`;
+        let inputPrompt = `Current animation code:\n---\n${currentCode}\n---\n\nRequested change:\n${request}`;
+        if (thinkingToggle.checked) inputPrompt = `/no_think\n${inputPrompt}`;
+
+        try {
+          const payload = {
+            model: lmModel.value,
+            system_prompt: systemPrompt,
+            input: inputPrompt,
+            stream: false
+          };
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: activeFetchAbortController.signal
+          });
+          const data = await response.json();
+          if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+
+          const textResult = data?.choices?.[0]?.message?.content
+            ?? data?.choices?.[0]?.text
+            ?? data?.content
+            ?? data?.output
+            ?? '';
+          const cleanedCode = parseJsFromResponse(typeof textResult === 'string' ? textResult : JSON.stringify(textResult));
+          codeEditor.value = cleanedCode;
+          logToConsole('AI revision applied. Validating...');
+          if (validateScript(cleanedCode)) {
+            activeCode = cleanedCode;
+            animState = {};
+            frameIndex = 0;
+            aiRevisionPrompt.value = '';
+            if (activeCreationMode === 'picture') {
+              pauseAnimation();
+              executeFrame(0);
+              await sendFrameToBoard();
+            } else if (!playbackInterval) {
+              playAnimation();
+            }
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') logToConsole('Revision cancelled.');
+          else logToConsole(`AI Revision Error: ${err.message}`);
+          validateScript();
+        } finally {
+          isAiGenerating = false;
+          activeFetchAbortController = null;
+          reviseWithAiBtn.disabled = false;
+          reviseWithAiBtn.textContent = 'Revise with AI';
+        }
+      }
+
+      function readSavedCreations() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(SAVED_CREATIONS_KEY) || '[]');
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          return [];
+        }
+      }
+
+      function writeSavedCreations(items) {
+        localStorage.setItem(SAVED_CREATIONS_KEY, JSON.stringify(items));
+      }
+
+      function refreshSavedCreations(selectedId = '') {
+        const items = readSavedCreations();
+        savedCreationsSelect.innerHTML = '';
+        if (!items.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No saved creations yet';
+          savedCreationsSelect.appendChild(option);
+          return;
+        }
+        items.forEach(item => {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = `${item.mode === 'picture' ? '🖼' : '▶'} ${item.name}`;
+          savedCreationsSelect.appendChild(option);
+        });
+        if (selectedId) savedCreationsSelect.value = selectedId;
+      }
+
+      function saveCurrentCreation() {
+        const code = (activeCode || codeEditor.value).trim();
+        if (!code || !validateScript(code)) {
+          logToConsole('Cannot save: the current code is empty or invalid.');
+          return;
+        }
+        const items = readSavedCreations();
+        const name = saveNameInput.value.trim() || `${activeCreationMode === 'picture' ? 'Picture' : 'Animation'} ${items.length + 1}`;
+        const existing = items.find(item => item.name.toLowerCase() === name.toLowerCase());
+        const item = {
+          id: existing?.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          name,
+          mode: activeCreationMode,
+          code,
+          fps: Number(fpsSlider.value) || 8,
+          prompt: themeInput.value.trim(),
+          savedAt: new Date().toISOString()
+        };
+        const next = existing ? items.map(old => old.id === existing.id ? item : old) : [item, ...items];
+        writeSavedCreations(next);
+        refreshSavedCreations(item.id);
+        saveNameInput.value = name;
+        logToConsole(`Saved ${item.mode}: ${name}`);
+      }
+
+      function loadSelectedCreation() {
+        const item = readSavedCreations().find(saved => saved.id === savedCreationsSelect.value);
+        if (!item) {
+          logToConsole('Choose a saved creation first.');
+          return;
+        }
+        if (!validateScript(item.code)) {
+          logToConsole(`Saved creation "${item.name}" contains invalid code.`);
+          return;
+        }
+        activeCode = item.code;
+        activeCreationMode = item.mode || 'animation';
+        codeEditor.value = item.code;
+        creationMode.value = activeCreationMode;
+        fpsSlider.value = String(item.fps || 8);
+        fpsVal.textContent = fpsSlider.value;
+        if (item.prompt) themeInput.value = item.prompt;
+        saveNameInput.value = item.name;
+        animState = {};
+        frameIndex = 0;
+        updateCreationModeUi();
+        if (activeCreationMode === 'picture') {
+          pauseAnimation();
+          executeFrame(0);
+          sendFrameToBoard();
+        } else {
+          playAnimation();
+        }
+        logToConsole(`Loaded saved ${activeCreationMode}: ${item.name}`);
+      }
+
+      function deleteSelectedCreation() {
+        const id = savedCreationsSelect.value;
+        const items = readSavedCreations();
+        const item = items.find(saved => saved.id === id);
+        if (!item) {
+          logToConsole('Choose a saved creation first.');
+          return;
+        }
+        writeSavedCreations(items.filter(saved => saved.id !== id));
+        refreshSavedCreations();
+        logToConsole(`Deleted saved creation: ${item.name}`);
+      }
+
+      function updateCreationModeUi() {
+        const picture = creationMode.value === 'picture';
+        themeInputLabel.textContent = picture ? 'Picture Description / Prompt' : 'Animation Theme / Prompt';
+        themeInput.placeholder = picture
+          ? 'e.g. red fox face, sunset over mountains, blue spaceship'
+          : 'e.g. falling rain, pulse...';
+        document.querySelector('.btn-text').textContent = picture ? 'Generate Picture' : 'Generate Animation';
+      }
+
+      function formatBytes(bytes) {
+        const value = Number(bytes);
+        if (!Number.isFinite(value) || value <= 0) return '';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let n = value;
+        let unit = 0;
+        while (n >= 1024 && unit < units.length - 1) {
+          n /= 1024;
+          unit += 1;
+        }
+        return `${n.toFixed(n >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+      }
+
+      function describeModel(model, index) {
+        const details = [];
+        if (model.loaded === true) details.push('LOADED');
+        else if (model.loaded === false) details.push('not loaded');
+        if (model.type) details.push(String(model.type));
+        if (model.quantization) details.push(String(model.quantization));
+        if (model.context_length) details.push(`context ${Number(model.context_length).toLocaleString()}`);
+        const size = formatBytes(model.size_bytes);
+        if (size) details.push(size);
+        if (model.publisher) details.push(String(model.publisher));
+        return `${index + 1}. ${model.name || model.id}\n   ID: ${model.id}${details.length ? `\n   ${details.join(' · ')}` : ''}`;
+      }
+
+      async function refreshModels(showReport = false) {
+        refreshModelsBtn.disabled = true;
+        refreshModelsBtn.textContent = 'Loading…';
+        modelReport.textContent = 'Requesting model list from LM Studio…';
+        try {
+          const response = await fetch('/api/models', { cache: 'no-store' });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            const attempts = (data.attempts || [])
+              .map(item => `${item.endpoint}: HTTP ${item.status}`)
+              .join('\n');
+            throw new Error(`${data.error || `HTTP ${response.status}`}${attempts ? `\n${attempts}` : ''}`);
+          }
+
+          const models = Array.isArray(data.models) ? data.models : [];
+          lmModelOptions.innerHTML = '';
+          models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.label = model.loaded === true
+              ? `${model.name || model.id} — loaded`
+              : (model.name || model.id);
+            lmModelOptions.appendChild(option);
+          });
+
+          const loadedCount = models.filter(model => model.loaded === true).length;
+          modelReport.textContent = [
+            'LM Studio model report',
+            `Source: ${data.source}`,
+            `Models found: ${models.length}`,
+            loadedCount ? `Explicitly marked loaded: ${loadedCount}` : '',
+            '',
+            ...(models.length
+              ? models.map(describeModel)
+              : ['The endpoint responded successfully but returned no model entries.'])
+          ].filter(line => line !== '').join('\n');
+
+          if (showReport) {
+            modelReport.style.display = 'block';
+            toggleModelReportBtn.textContent = 'Hide Report';
+          }
+
+          logToConsole(`Found ${models.length} LM Studio model${models.length === 1 ? '' : 's'}.`);
+
+          if (models.length && !models.some(model => model.id === lmModel.value.trim())) {
+            const preferred = models.find(model => model.loaded === true) || models[0];
+            lmModel.value = preferred.id;
+            logToConsole(`Selected available model: ${preferred.id}`);
+          }
+        } catch (err) {
+          modelReport.textContent = `Model discovery failed:\n${err.message}\n\nYou can still type a model ID manually.`;
+          modelReport.style.display = 'block';
+          toggleModelReportBtn.textContent = 'Hide Report';
+          logToConsole(`Model discovery error: ${err.message}`);
+        } finally {
+          refreshModelsBtn.disabled = false;
+          refreshModelsBtn.textContent = 'Refresh Models';
+        }
+      }
+
+      function toggleModelReport() {
+        const showing = modelReport.style.display !== 'none';
+        modelReport.style.display = showing ? 'none' : 'block';
+        toggleModelReportBtn.textContent = showing ? 'Show Report' : 'Hide Report';
+      }
+
+      // Event Listeners
+      codeEditor.addEventListener('input', () => {
+        if (!isAiGenerating && validateScript(codeEditor.value)) {
+          activeCode = codeEditor.value;
+          if (activeCreationMode === 'picture') executeFrame(0);
+        }
+      });
+
+      const lengthButtons = document.querySelectorAll('.length-btn');
+      lengthButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          lengthButtons.forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          activeLength = btn.dataset.length;
+        });
+      });
+
+      const themePresets = document.querySelectorAll('[data-ai-theme]');
+      themePresets.forEach(chip => {
+        chip.addEventListener('click', () => {
+          themeInput.value = chip.dataset.aiTheme;
+          generateAnimation();
+        });
+      });
+
+      playBtn.addEventListener('click', () => {
+        if (playbackInterval) {
+          pauseAnimation();
+        } else {
+          playAnimation();
+        }
+      });
+
+      stopBtn.addEventListener('click', stopAnimation);
+      cancelBtn.addEventListener('click', cancelActiveRequest);
+      fixWithAiBtn.addEventListener('click', fixAnimationWithAi);
+      reviseWithAiBtn.addEventListener('click', reviseAnimationWithAi);
+
+      stepBtn.addEventListener('click', () => {
+        stopAnimation();
+        executeFrame(frameIndex);
+        frameIndex++;
+      });
+
+      clearGridBtn.addEventListener('click', () => {
+        clear();
+        renderLedGrid();
+        logToConsole("Grid cleared locally");
+      });
+
+      fpsSlider.addEventListener('input', () => {
+        const val = fpsSlider.value;
+        fpsVal.textContent = val;
+        if (playbackInterval) {
+          playAnimation(); // restart loop with new FPS speed
+        }
+      });
+
+      resetFrameBtn.addEventListener('click', () => {
+        frameIndex = 0;
+        animState = {};
+        frameVal.textContent = '0';
+        executeFrame(0);
+        logToConsole(activeCreationMode === 'picture' ? "Picture redrawn" : "Frame count and state reset");
+      });
+
+      generateBtn.addEventListener('click', generateAnimation);
+      refreshModelsBtn.addEventListener('click', () => refreshModels(true));
+      toggleModelReportBtn.addEventListener('click', toggleModelReport);
+      creationMode.addEventListener('change', updateCreationModeUi);
+      saveCreationBtn.addEventListener('click', saveCurrentCreation);
+      loadCreationBtn.addEventListener('click', loadSelectedCreation);
+      deleteCreationBtn.addEventListener('click', deleteSelectedCreation);
+      saveBoardAddressBtn.addEventListener('click', async () => {
+        try {
+          await saveBoardAddress(true);
+          await checkStatuses();
+        } catch (e) {
+          logToConsole(`Board Address Error: ${e.message}`);
+        }
+      });
+      [boardHost, boardPort].forEach(input => input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') saveBoardAddressBtn.click();
+      }));
+
+      // Connect board button action
+      connectDeviceBtn.addEventListener('click', async () => {
+        logToConsole("Attempting connection to Arcade Coder board...");
+        try {
+          const response = await fetch('/api/board/start-paint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          });
+          const data = await response.json();
+          logToConsole("Board initialized and set to Paint mode");
+          checkStatuses();
+        } catch (e) {
+          logToConsole(`Connect Error: ${e.message}`);
+        }
+      });
+
+      startPaintBtn.addEventListener('click', async () => {
+        logToConsole("Starting board paint mode...");
+        try {
+          const response = await fetch('/api/board/start-paint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          });
+          logToConsole("Paint command sent to board.");
+          checkStatuses();
+        } catch (e) {
+          logToConsole(`Paint Start Error: ${e.message}`);
+        }
+      });
+
+      // Initialization routine
+      async function init() {
+        activeCode = codeEditor.value;
+        activeCreationMode = creationMode.value;
+        updateCreationModeUi();
+        refreshSavedCreations();
+        refreshModels(false);
+
+        createLedGrid();
+        populateStaticPresets();
+        validateScript();
+        executeFrame(0);
+
+        try {
+          await loadBoardAddress();
+        } catch (e) {
+          logToConsole(`Board Configuration Error: ${e.message}`);
+        }
+
+        // Initial connection checks
+        await checkStatuses();
+
+        // Periodic check to keep status updated
+        setInterval(checkStatuses, 4000);
+      }
+
+      window.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>

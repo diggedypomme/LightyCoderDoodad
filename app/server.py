@@ -83,6 +83,10 @@ AURORA_STATUS_URLS = [
     "https://aurorawatch-api.lancs.ac.uk/0.2/current-status.xml",
     "http://aurorawatch-api.lancs.ac.uk/0.2/current-status.xml",
 ]
+AURORA_ACTIVITY_URLS = [
+    "http://aurorawatch-api.lancs.ac.uk/0.2/status/alerting-site-activity.xml",
+    "https://aurorawatch-api.lancs.ac.uk/0.2/status/alerting-site-activity.xml",
+]
 
 CPU_SAMPLE: tuple[int, int, int] | None = None
 NET_SAMPLE: tuple[float, int, int] | None = None
@@ -257,6 +261,69 @@ def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+def _aurora_status_for_value(value: float, thresholds: list[dict[str, object]]) -> str:
+    chosen = "green"
+    for threshold in sorted(thresholds, key=lambda item: float(item["value"])):
+        if value >= float(threshold["value"]):
+            chosen = str(threshold["statusId"])
+    return chosen
+
+
+def fetch_aurora_activity() -> dict[str, object]:
+    errors: list[str] = []
+    for url in AURORA_ACTIVITY_URLS:
+        try:
+            req = Request(url, headers={"User-Agent": "codex-arcade-coder-paint-ui/0.1"})
+            with urlopen(req, timeout=10) as response:
+                xml_bytes = response.read()
+            root = ElementTree.fromstring(xml_bytes)
+
+            thresholds: list[dict[str, object]] = []
+            activities: list[dict[str, object]] = []
+            for element in root.iter():
+                name = _local_name(element.tag)
+                if name == "lower_threshold":
+                    status_id = element.attrib.get("status_id", "").lower()
+                    raw_value = (element.text or "").strip()
+                    if status_id and raw_value:
+                        thresholds.append({"statusId": status_id, "value": float(raw_value)})
+                elif name == "activity":
+                    activity_time = ""
+                    activity_value: float | None = None
+                    for child in element:
+                        child_name = _local_name(child.tag)
+                        child_text = (child.text or "").strip()
+                        if child_name == "datetime":
+                            activity_time = child_text
+                        elif child_name == "value" and child_text:
+                            activity_value = float(child_text)
+                    if activity_value is not None:
+                        activities.append({
+                            "datetime": activity_time,
+                            "value": activity_value,
+                            "statusId": element.attrib.get("status_id", "").lower(),
+                        })
+
+            if not activities:
+                raise ValueError("no activity entries in XML")
+
+            latest = activities[-1]
+            value = float(latest["value"])
+            status_id = _aurora_status_for_value(value, thresholds) if thresholds else "green"
+            latest["statusId"] = status_id
+            latest["ledCount"] = max(0, min(144, round(value / 2)))
+            latest["unitsPerLed"] = 2
+            return {
+                "ok": True,
+                "url": url,
+                "latest": latest,
+                "thresholds": thresholds,
+            }
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+    return {"ok": False, "error": "; ".join(errors)}
+
+
 def fetch_aurora_status() -> dict[str, object]:
     errors: list[str] = []
     for url in AURORA_STATUS_URLS:
@@ -285,7 +352,13 @@ def fetch_aurora_status() -> dict[str, object]:
             rank = {"green": 0, "yellow": 1, "amber": 2, "red": 3}
             alerting = [row for row in statuses if row.get("isAlerting")]
             chosen = alerting[0] if alerting else max(statuses, key=lambda row: rank.get(str(row["statusId"]), -1))
-            return {"ok": True, "url": url, "chosen": chosen, "statuses": statuses[:50]}
+            result: dict[str, object] = {"ok": True, "url": url, "chosen": chosen, "statuses": statuses[:50]}
+            activity = fetch_aurora_activity()
+            if activity.get("ok"):
+                result["activity"] = activity
+            else:
+                result["activityError"] = activity.get("error", "unknown activity error")
+            return result
         except Exception as exc:
             errors.append(f"{url}: {exc}")
     return {"ok": False, "error": "; ".join(errors)}
@@ -549,9 +622,17 @@ class BleSession:
                 )
             await self._dispose_client()
             self.add_log(f"connecting to {self.address}")
-            client = BleakClient(self.address)
+            client: BleakClient | None = None
             try:
                 async with RADIO_LOCK:
+                    target: object = self.address
+                    if sys.platform.startswith("linux"):
+                        self.add_log("scanning for Linux BLE device details before connect")
+                        device = await BleakScanner.find_device_by_address(self.address, timeout=8.0)
+                        if device is not None:
+                            target = device
+                            self.add_log("using scanned BLE device details for connect")
+                    client = BleakClient(target)
                     await asyncio.wait_for(client.connect(), timeout=CONNECT_TIMEOUT_SECONDS)
                     # Wait for service discovery to complete
                     await asyncio.sleep(1.5)
@@ -593,11 +674,17 @@ class BleSession:
         self.add_log("disconnected")
 
     async def reconnect(self) -> None:
-        """Force disconnect and reconnect."""
+        """Force disconnect and reconnect, recovering stale BlueZ links once."""
         self.add_log("reconnecting...")
         await self.disconnect()
         await asyncio.sleep(0.5)  # Brief pause between disconnect and reconnect
-        await self.ensure_connected()
+        try:
+            await self.ensure_connected()
+        except Exception:
+            if not sys.platform.startswith("linux"):
+                raise
+            self.add_log("reconnect failed; running BlueZ cache recovery once")
+            await self.clear_linux_ble_cache_and_reconnect()
         self.add_log("reconnect complete")
 
 
@@ -617,6 +704,7 @@ class BleSession:
         await self.disconnect()
         self.next_connect_allowed = 0.0
         commands = [
+            ["bluetoothctl", "disconnect", self.address],
             ["bluetoothctl", "remove", self.address],
             ["bluetoothctl", "power", "on"],
         ]
@@ -641,6 +729,7 @@ class BleSession:
         await self.ensure_connected()
         self.add_log("cache recovery reconnect complete")
         return output
+
     async def start_builtin(self, module_name: str) -> None:
         await self.ensure_connected()
         await self.write_with_retry(COMMAND_CHAR, CommandMessage.start_builtin(module_name), response=False)
@@ -768,6 +857,161 @@ def _markdown_inline(text: str) -> str:
     return escaped
 
 
+
+DIGITS_3X5: dict[int, list[list[int]]] = {
+    0: [[1,1,1], [1,0,1], [1,0,1], [1,0,1], [1,1,1]],
+    1: [[0,1,0], [1,1,0], [0,1,0], [0,1,0], [1,1,1]],
+    2: [[1,1,1], [0,0,1], [1,1,1], [1,0,0], [1,1,1]],
+    3: [[1,1,1], [0,0,1], [1,1,1], [0,0,1], [1,1,1]],
+    4: [[1,0,1], [1,0,1], [1,1,1], [0,0,1], [0,0,1]],
+    5: [[1,1,1], [1,0,0], [1,1,1], [0,0,1], [1,1,1]],
+    6: [[1,1,1], [1,0,0], [1,1,1], [1,0,1], [1,1,1]],
+    7: [[1,1,1], [0,0,1], [0,0,1], [0,0,1], [0,0,1]],
+    8: [[1,1,1], [1,0,1], [1,1,1], [1,0,1], [1,1,1]],
+    9: [[1,1,1], [1,0,1], [1,1,1], [0,0,1], [1,1,1]],
+}
+
+
+def display_number_canvas(number: int, r: int, g: int, b: int) -> bytes:
+    number = max(0, min(999, int(number)))
+    r = max(0, min(255, int(r)))
+    g = max(0, min(255, int(g)))
+    b = max(0, min(255, int(b)))
+    width = 12
+    height = 12
+    num_str = str(number)
+    total_width = len(num_str) * 3 + (len(num_str) - 1)
+    start_x = (width - total_width) // 2
+    start_y = 3
+    rgb_data = bytearray([0, 0, 0] * width * height)
+    for i, digit_char in enumerate(num_str):
+        pattern = DIGITS_3X5[int(digit_char)]
+        digit_x = start_x + i * 4
+        for row in range(len(pattern)):
+            for col in range(len(pattern[row])):
+                if pattern[row][col]:
+                    x = digit_x + col
+                    y = start_y + row
+                    if 0 <= x < width and 0 <= y < height:
+                        index = (y * width + x) * 3
+                        rgb_data[index] = r
+                        rgb_data[index + 1] = g
+                        rgb_data[index + 2] = b
+    return compact_canvas_from_rgb(width, height, bytes(rgb_data))
+
+
+class ServerTemperatureMonitor:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.thread: threading.Thread | None = None
+        self.running = False
+        self.url = ""
+        self.interval_seconds = 5.0
+        self.color = {"r": 255, "g": 102, "b": 0}
+        self.last_result: dict[str, object] | None = None
+        self.last_error: str | None = None
+        self.last_run = 0.0
+
+    def status(self) -> dict[str, object]:
+        with self.lock:
+            return {
+                "ok": True,
+                "running": self.running,
+                "url": self.url,
+                "intervalSeconds": self.interval_seconds,
+                "color": self.color,
+                "lastResult": self.last_result,
+                "lastError": self.last_error,
+                "lastRun": self.last_run,
+            }
+
+    def start(self, url: str, interval_seconds: float, color: dict[str, int]) -> dict[str, object]:
+        url = str(url).strip()
+        if not url:
+            raise ValueError("url is required")
+        interval_seconds = max(0.5, min(3600.0, float(interval_seconds)))
+        clean_color = {
+            "r": max(0, min(255, int(color.get("r", 255)))),
+            "g": max(0, min(255, int(color.get("g", 102)))),
+            "b": max(0, min(255, int(color.get("b", 0)))),
+        }
+        self.stop()
+        with self.lock:
+            self.url = url
+            self.interval_seconds = interval_seconds
+            self.color = clean_color
+            self.last_error = None
+            self.running = True
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+        return self.status()
+
+    def stop(self) -> dict[str, object]:
+        self.stop_event.set()
+        thread = self.thread
+        if thread and thread.is_alive():
+            thread.join(timeout=2.0)
+        with self.lock:
+            self.running = False
+            self.thread = None
+        return self.status()
+
+    def _run(self) -> None:
+        while not self.stop_event.is_set():
+            started = time.time()
+            try:
+                self._fetch_and_send_once()
+            except Exception as exc:
+                with self.lock:
+                    self.last_error = str(exc)
+                    self.last_run = time.time()
+                print(f"[temperature-monitor] error: {exc}", flush=True)
+            elapsed = time.time() - started
+            wait_for = max(0.1, self.interval_seconds - elapsed)
+            self.stop_event.wait(wait_for)
+        with self.lock:
+            self.running = False
+
+    def _fetch_and_send_once(self) -> None:
+        assert STATE is not None
+        with self.lock:
+            url = self.url
+            color = dict(self.color)
+        with urlopen(url, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        chart_temp = float(data.get("chart_temp") or 0)
+        rounded_temp = round(chart_temp)
+        canvas = display_number_canvas(rounded_temp, color["r"], color["g"], color["b"])
+        result = STATE.run(STATE.session.send_compact_canvas(canvas, False), timeout=30)
+        with self.lock:
+            self.last_result = {
+                "chartTemp": chart_temp,
+                "roundedTemp": rounded_temp,
+                "relay": bool(data.get("relay")),
+                "faultText": data.get("fault_text"),
+                "canvasBytes": result.get("canvasBytes"),
+            }
+            self.last_error = None
+            self.last_run = time.time()
+
+
+TEMP_MONITOR = ServerTemperatureMonitor()
+
+def schedule_service_restart() -> None:
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError("service restart is only available on Linux/systemd")
+
+    def restart_later() -> None:
+        time.sleep(0.7)
+        try:
+            subprocess.run(["systemctl", "restart", "lightydoodad.service"], check=False)
+        except Exception as exc:
+            print(f"[service-restart] failed: {exc}", flush=True)
+
+    threading.Thread(target=restart_later, daemon=True).start()
+
 def render_markdown_page(markdown: str, title: str) -> str:
     out: list[str] = []
     in_list = False
@@ -887,6 +1131,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 json_response(self, 500, {"ok": False, "error": str(e)})
             return
+        if parsed.path == "/api/server-temperature-status":
+            json_response(self, 200, TEMP_MONITOR.status())
+            return
         if parsed.path == "/api/scan-devices":
             assert STATE is not None
             devices = STATE.run(scan_ble_devices(6.0), timeout=25)
@@ -946,9 +1193,25 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/reconnect":
                 STATE.run(session.reconnect(), timeout=60)
                 json_response(self, 200, session.status())
+            elif self.path == "/api/restart-service":
+                schedule_service_restart()
+                json_response(self, 200, {"ok": True, "message": "lightydoodad.service restart scheduled"})
             elif self.path == "/api/clear-ble-cache-reconnect":
                 output = STATE.run(session.clear_linux_ble_cache_and_reconnect(), timeout=90)
-                json_response(self, 200, {"ok": True, "output": output, "status": session.status()})            elif self.path == "/api/start-paint":
+                json_response(self, 200, {"ok": True, "output": output, "status": session.status()})
+            elif self.path == "/api/server-temperature-start":
+                color = body.get("color", {})
+                if not isinstance(color, dict):
+                    color = {}
+                status = TEMP_MONITOR.start(
+                    str(body.get("url", "")),
+                    float(body.get("intervalSeconds", 5)),
+                    {"r": int(color.get("r", 255)), "g": int(color.get("g", 102)), "b": int(color.get("b", 0))},
+                )
+                json_response(self, 200, status)
+            elif self.path == "/api/server-temperature-stop":
+                json_response(self, 200, TEMP_MONITOR.stop())
+            elif self.path == "/api/start-paint":
                 STATE.run(session.start_paint())
                 json_response(self, 200, session.status())
             elif self.path == "/api/start-builtin":

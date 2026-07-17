@@ -111,13 +111,15 @@
             <div class="actions">
               <button id="fetchTemp">Fetch Once</button>
               <button id="autoTemp">Start Auto</button>
+              <button id="serverTempStart">Start From Server</button>
+              <button id="serverTempStop">Stop From Server</button>
             </div>
             <pre id="tempInfo" style="margin-top: 10px; font-size: 11px; max-height: 80px;"></pre>
           </div>
 
           <div class="panel">
             <h2>AuroraWatch</h2>
-            <p class="hint">Uses AuroraWatch UK API v0.2 current status XML. Mapping: green 12 LEDs, yellow 48, amber 96, red 144.</p>
+            <p class="hint">Uses AuroraWatch UK activity values when available: one LED per 2 activity units, color from green/yellow/amber/red thresholds.</p>
             <label>
               Manual level
               <select id="manualAurora">

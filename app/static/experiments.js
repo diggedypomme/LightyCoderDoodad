@@ -166,6 +166,18 @@ function buildAuroraCanvas(statusId) {
   previewEl.textContent = `aurora ${statusId}\nleds=${level.count}\ndisplay rgb=(${level.rgb.join(",")})`;
 }
 
+
+function buildAuroraActivityCanvas(activity) {
+  const latest = activity && activity.latest ? activity.latest : null;
+  if (!latest) return false;
+  const statusId = latest.statusId || "green";
+  const level = AURORA_LEVELS[statusId] || AURORA_LEVELS.green;
+  const ledCount = Math.max(0, Math.min(144, Math.round(Number(latest.ledCount) || 0)));
+  fillFirstCount(ledCount, level.rgb, false);
+  previewEl.textContent = `aurora activity ${Number(latest.value).toFixed(1)}\nstatus=${statusId}\nleds=${ledCount}\ndisplay rgb=(${level.rgb.join(",")})`;
+  return true;
+}
+
 function fillMeterRows(startY, percent, rgb, options = {}) {
   const rows = options.rows || 2;
   let cellsToLight = Math.round(clampPercent(percent) / 100 * WIDTH * rows);
@@ -404,18 +416,23 @@ async function sendCurrent(label = "current preview") {
 
 async function fetchAurora() {
   const data = await api("/api/aurora-status");
-  const statusId = data.chosen.statusId;
-  buildAuroraCanvas(statusId);
+  const activity = data.activity;
+  const statusId = activity && activity.latest ? activity.latest.statusId : data.chosen.statusId;
+  const usedActivity = buildAuroraActivityCanvas(activity);
+  if (!usedActivity) buildAuroraCanvas(statusId);
   auroraInfoEl.textContent = JSON.stringify(data, null, 2);
-  addLog(`aurora ${statusId}`);
-  return statusId;
+  if (usedActivity) {
+    addLog(`aurora ${activity.latest.value.toFixed(1)} -> ${activity.latest.ledCount} LEDs ${statusId}`);
+  } else {
+    addLog(`aurora ${statusId}`);
+  }
+  return usedActivity ? `activity ${activity.latest.value.toFixed(1)} ${statusId}` : statusId;
 }
 
 async function sendAurora() {
-  const statusId = await fetchAurora();
-  await sendCurrent(`aurora ${statusId}`);
+  const label = await fetchAurora();
+  await sendCurrent(`aurora ${label}`);
 }
-
 function previewManualAurora() {
   const statusId = manualAuroraEl.value;
   buildAuroraCanvas(statusId);
@@ -469,7 +486,7 @@ function buildDisplayNumberCanvas(number, r, g, b) {
   // Each digit is 3 pixels wide, spacing is 1 pixel
   const totalWidth = digitCount * 3 + (digitCount - 1);
   const startX = Math.floor((WIDTH - totalWidth) / 2);
-  const startY = 3; // Center vertically (12 - 5 = 7, 7/2 ≈ 3)
+  const startY = 3; // Center vertically
 
   for (let i = 0; i < numStr.length; i++) {
     const digit = parseInt(numStr[i]);
@@ -526,7 +543,7 @@ async function fetchTemperature() {
     const color = hexToRgb(tempColorEl.value);
 
     // Display info
-    tempInfoEl.textContent = `chart_temp: ${chartTemp}°C\nrounded: ${roundedTemp}°C\nrelay: ${data.relay ? 'ON' : 'OFF'}\nstatus: ${data.fault_text || 'N/A'}`;
+    tempInfoEl.textContent = `chart_temp: ${chartTemp}C\nrounded: ${roundedTemp}C\nrelay: ${data.relay ? 'ON' : 'OFF'}\nstatus: ${data.fault_text || 'N/A'}`;
 
     // Send to LED display
     const displayResult = await api("/api/display-number", {
@@ -537,7 +554,7 @@ async function fetchTemperature() {
       startIfNeeded: false
     });
 
-    addLog(`temp ${roundedTemp}°C (actual: ${chartTemp}°C)`);
+    addLog(`temp ${roundedTemp}C (actual: ${chartTemp}C)`);
     return { temp: roundedTemp, chartTemp, data };
   } catch (error) {
     clearTimeout(timeoutId);
@@ -548,6 +565,39 @@ async function fetchTemperature() {
   }
 }
 
+
+function renderServerTemperatureStatus(status) {
+  if (!status) return;
+  const running = status.running ? "server auto: running" : "server auto: stopped";
+  const last = status.lastResult ? `\nlast server temp: ${status.lastResult.roundedTemp}C (actual: ${status.lastResult.chartTemp}C)` : "";
+  const err = status.lastError ? `\nlast server error: ${status.lastError}` : "";
+  const existing = tempInfoEl.textContent.trim();
+  const clientText = existing && !existing.includes("server auto:") ? `${existing}\n` : "";
+  tempInfoEl.textContent = `${clientText}${running}${last}${err}`;
+}
+
+async function refreshServerTemperatureStatus() {
+  const status = await api("/api/server-temperature-status");
+  renderServerTemperatureStatus(status);
+  return status;
+}
+
+async function startServerTemperature() {
+  const url = tempApiUrlEl.value.trim();
+  if (!url) throw new Error("API URL is required");
+  const color = hexToRgb(tempColorEl.value);
+  const intervalSeconds = Math.max(0.5, Number(tempIntervalEl.value) || 5);
+  const status = await api("/api/server-temperature-start", { url, color, intervalSeconds }, 12000);
+  saveTempSettings();
+  renderServerTemperatureStatus(status);
+  addLog(`started server temperature every ${intervalSeconds} sec`);
+}
+
+async function stopServerTemperature() {
+  const status = await api("/api/server-temperature-stop", {}, 12000);
+  renderServerTemperatureStatus(status);
+  addLog("stopped server temperature");
+}
 function toggleTempAuto() {
   const button = document.querySelector("#autoTemp");
   if (autoTempTimer) {
@@ -674,6 +724,8 @@ document.querySelector("#previewDisplayNumber").addEventListener("click", previe
 document.querySelector("#sendDisplayNumber").addEventListener("click", () => sendDisplayNumber().catch((err) => addLog(err.message)));
 document.querySelector("#fetchTemp").addEventListener("click", () => fetchTemperature().catch((err) => addLog(err.message)));
 document.querySelector("#autoTemp").addEventListener("click", toggleTempAuto);
+document.querySelector("#serverTempStart").addEventListener("click", () => startServerTemperature().catch((err) => addLog(err.message)));
+document.querySelector("#serverTempStop").addEventListener("click", () => stopServerTemperature().catch((err) => addLog(err.message)));
 document.querySelector("#fetchAurora").addEventListener("click", () => fetchAurora().catch((err) => addLog(err.message)));
 document.querySelector("#sendAurora").addEventListener("click", () => sendAurora().catch((err) => addLog(err.message)));
 document.querySelector("#manualAuroraPreview").addEventListener("click", previewManualAurora);
@@ -718,7 +770,9 @@ async function init() {
   tempIntervalEl.addEventListener('change', saveTempSettings);
 
   await refreshStatus();
+  await refreshServerTemperatureStatus().catch((err) => addLog(err.message));
   setInterval(() => refreshStatus().catch((err) => addLog(err.message)), 1500);
+  setInterval(() => refreshServerTemperatureStatus().catch((err) => addLog(err.message)), 5000);
 }
 
 init().catch((err) => addLog(err.message));
