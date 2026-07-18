@@ -48,8 +48,32 @@ class ProtobufEncoder:
         raise ValueError(f"unsupported wire type: {wire_type}")
 
 
+class GameMessage:
+    """Build source-only Game protobufs for the stock uploaded-game VM."""
+
+    @staticmethod
+    def source_game(name: str, source: str) -> bytes:
+        enc = ProtobufEncoder()
+        message = enc.encode_field(1, WIRE_LEN, name)
+        message += enc.encode_field(2, WIRE_LEN, name)
+        message += enc.encode_field(3, WIRE_LEN, source)
+        return message
+
+
 class CommandMessage:
     enc = ProtobufEncoder()
+
+    @staticmethod
+    def start_game(game_name: str, frequency: float = 8.0) -> bytes:
+        """Start an uploaded game with a fixed32 VM tick frequency."""
+        if frequency <= 0:
+            raise ValueError("frequency must be greater than zero")
+        name_payload = CommandMessage.enc.encode_field(1, WIRE_LEN, game_name)
+        frequency_payload = CommandMessage.enc.encode_field(1, WIRE_32BIT, float(frequency))
+        command = CommandMessage.enc.encode_field(1, WIRE_VARINT, 0)
+        command += CommandMessage.enc.encode_field(2, WIRE_LEN, name_payload)
+        command += CommandMessage.enc.encode_field(3, WIRE_LEN, frequency_payload)
+        return command
 
     @staticmethod
     def start_builtin(module_name: str, timing: float = 1.0) -> bytes:

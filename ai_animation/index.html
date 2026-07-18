@@ -1233,6 +1233,7 @@ state.cells = alive < 6 || i % 120 === 119 ? reseed() : next;`
               width: W,
               height: H,
               pixels: bgrMappedPixels,
+              compression: 'huffman',
               startIfNeeded: false
             })
           });

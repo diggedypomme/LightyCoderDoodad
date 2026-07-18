@@ -30,6 +30,7 @@
           <a class="button-link" href="/">Pixel Grid</a>
           <a class="button-link" href="/experiments.html">Experiments</a>
           <span class="button-link current-page">Animations</span>
+          <a class="button-link" href="/scratch.html">Arcade Blocks</a>
           <a class="button-link" href="/images.html">Images</a>
           <a class="button-link" href="/webcam.html">Webcam</a>
           <a class="button-link" href="/text.html">Text</a>
@@ -60,9 +61,16 @@
               <label>Example<select id="example"></select></label>
               <button id="nextRandom">Next Example</button>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px;">
               <label>FPS<input id="fps" type="number" min="1" max="20" value="4"></label>
               <label>Frame<input id="frameNo" type="number" min="0" value="0"></label>
+              <label>Compression<select id="compression">
+                <option value="default">Dynamic (incompatible)</option>
+                <option value="fixed">Fixed Huffman</option>
+                <option value="huffman" selected>Huffman only (safe)</option>
+                <option value="rle">RLE</option>
+                <option value="stored">Stored / none</option>
+              </select></label>
             </div>
             <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; margin-bottom: 10px;">
               <label>Auto-skip interval (sec)<input id="skipInterval" type="number" min="1" max="60" value="5"></label>

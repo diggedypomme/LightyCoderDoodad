@@ -6,6 +6,7 @@ const scriptEl = document.querySelector("#script");
 const exampleEl = document.querySelector("#example");
 const fpsEl = document.querySelector("#fps");
 const frameNoEl = document.querySelector("#frameNo");
+const compressionEl = document.querySelector("#compression");
 const deviceSelEl = document.querySelector("#deviceSel");
 
 const W = 12;
@@ -1033,10 +1034,12 @@ async function sendFrame() {
     width: W,
     height: H,
     pixels: pixels.map(displayToWirePixel),
+    compression: compressionEl.value,
     startIfNeeded: false,
   });
-  previewEl.textContent += `\ncompact bytes=${result.canvasBytes}\ncompact hex=${result.canvasHex}`;
-  addLog(`sent animation frame ${frame} ${result.canvasBytes} bytes`);
+  const commandBytes = result.commandHex.length / 2;
+  previewEl.textContent += `\ncompression=${result.compression}\ncompact bytes=${result.canvasBytes}\ncommand bytes=${commandBytes}\ncompact hex=${result.canvasHex}`;
+  addLog(`sent frame ${frame}: ${result.compression}, canvas ${result.canvasBytes} B, command ${commandBytes} B`);
 }
 
 async function tickAndSend() {

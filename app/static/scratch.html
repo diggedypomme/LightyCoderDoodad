@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Arcade Blocks</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .scratch-layout { display: grid; grid-template-columns: minmax(560px, 1fr) minmax(320px, 430px); gap: 16px; }
+      #blocklyDiv { height: min(72vh, 760px); min-height: 520px; width: 100%; border-radius: 8px; overflow: hidden; }
+      .scratch-controls { display: grid; grid-template-columns: 1fr 110px; gap: 10px; }
+      .scratch-controls label { margin: 0; }
+      .risk-check { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; }
+      .risk-check input { width: auto; margin-top: 3px; }
+      #generatedSource { min-height: 190px; font-size: 11px; }
+      .size-ok { color: #17833b; font-weight: 700; }
+      .size-warning { color: #a85d00; font-weight: 700; }
+      .size-error { color: #b42318; font-weight: 700; }
+      .scratch-note { border-left: 4px solid #855cd6; padding-left: 10px; }
+      @media (max-width: 980px) { .scratch-layout { display: block; } #blocklyDiv { min-height: 480px; margin-bottom: 16px; } }
+    </style>
+    <script src="https://unpkg.com/blockly@12.5.1/blockly_compressed.js"></script>
+    <script src="https://unpkg.com/blockly@12.5.1/blocks_compressed.js"></script>
+    <script src="https://unpkg.com/blockly@12.5.1/msg/en.js"></script>
+    <script src="/scratch_codegen.js"></script>
+    <script src="/scratch.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Arcade Blocks <span class="project-name">Scratch-style native programming</span></h1>
+          <p id="status">Loading...</p>
+        </div>
+        <div class="toolbar">
+          <button id="connect">Connect</button>
+          <button id="loadExample">Load Trio Example</button>
+          <button id="loadBlink">Load Blink Example</button>
+          <button id="loadRandomBounce">Load Random Bounce</button>
+          <a class="button-link" href="/pixelgrid.html">Pixel Grid</a>
+          <a class="button-link" href="/animations.html">Paint Animations</a>
+          <span class="button-link current-page">Arcade Blocks</span>
+        </div>
+      </header>
+
+      <section class="scratch-layout">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Program</h2>
+              <p class="hint">Create named sprites in set up, then change and control them from forever. Use the blink example to test timed actions.</p>
+            </div>
+          </div>
+          <div id="blocklyDiv"></div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2>Build and run onboard</h2>
+            <div class="scratch-controls">
+              <label>Game name<input id="gameName" value="blocks1" maxlength="16" pattern="[A-Za-z][A-Za-z0-9_-]*"></label>
+              <label>Tick rate<input id="frequency" type="number" value="8" min="0.5" max="30" step="0.5"></label>
+            </div>
+            <p>Payload: <span id="payloadSize">Generating...</span></p>
+            <label class="risk-check"><input id="riskAccepted" type="checkbox"><span>I understand uploaded programs run natively and malformed code may freeze or reboot the board. Without UART, detailed device errors will not be visible.</span></label>
+            <div class="buttons">
+              <button id="generate">Check Build</button>
+              <button id="uploadRun" disabled>Upload and Run</button>
+            </div>
+          </div>
+
+          <div class="panel scratch-note">
+            <h2>What this is</h2>
+            <p class="hint">Blockly provides the open-source block workspace. Our compiler generates the small Arcade Engine JavaScript subset used by the stock firmware. Current blocks cover named sprites, movement, colour, visibility, edge events, directional tilt, shake, randomness and tick-based repetition. This is our interface, not a copy of the original app.</p>
+          </div>
+
+          <div class="panel">
+            <h2>Generated JavaScript</h2>
+            <textarea id="generatedSource" readonly spellcheck="false"></textarea>
+          </div>
+
+          <div class="panel">
+            <h2>Log</h2>
+            <pre id="scratchLog"></pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>

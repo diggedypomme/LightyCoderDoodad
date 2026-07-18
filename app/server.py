@@ -32,7 +32,9 @@ from bleak import BleakClient, BleakScanner  # noqa: E402
 from stock_protocol.arcade_coder import (  # noqa: E402
     CALLBACK_CHAR,
     COMMAND_CHAR,
+    GAME_CHAR,
     CommandMessage,
+    GameMessage,
     ProtobufEncoder,
     WIRE_LEN,
     WIRE_VARINT,
@@ -140,8 +142,10 @@ def decimal_bytes(data: bytes) -> str:
 
 
 
-def deflate_raw(data: bytes, level: int = 9) -> bytes:
-    compressor = zlib.compressobj(level=level, wbits=-15)
+def deflate_raw(data: bytes, level: int = 9, strategy: int = zlib.Z_DEFAULT_STRATEGY) -> bytes:
+    compressor = zlib.compressobj(
+        level=level, method=zlib.DEFLATED, wbits=-15, memLevel=zlib.DEF_MEM_LEVEL, strategy=strategy
+    )
     return compressor.compress(data) + compressor.flush()
 
 
@@ -238,13 +242,25 @@ def decode_compact_canvas(canvas_hex: str) -> dict[str, object] | None:
         return None
 
 
-def compact_canvas_from_rgb(width: int, height: int, rgb: bytes) -> bytes:
+PAINT_COMPRESSION_MODES = {
+    "default": (9, zlib.Z_DEFAULT_STRATEGY),
+    "fixed": (9, zlib.Z_FIXED),
+    "huffman": (9, zlib.Z_HUFFMAN_ONLY),
+    "rle": (9, zlib.Z_RLE),
+    "stored": (0, zlib.Z_DEFAULT_STRATEGY),
+}
+
+
+def compact_canvas_from_rgb(width: int, height: int, rgb: bytes, compression: str = "huffman") -> bytes:
     expected = width * height * 3
     if not (1 <= width <= 12 and 1 <= height <= 12):
         raise ValueError("width/height must be 1..12")
     if len(rgb) != expected:
         raise ValueError(f"expected {expected} RGB bytes, got {len(rgb)}")
-    return bytes([width, height]) + deflate_raw(rgb)
+    if compression not in PAINT_COMPRESSION_MODES:
+        raise ValueError(f"unknown paint compression mode: {compression}")
+    level, strategy = PAINT_COMPRESSION_MODES[compression]
+    return bytes([width, height]) + deflate_raw(rgb, level=level, strategy=strategy)
 
 
 def single_pixel_canvas(x: int, y: int, r: int, g: int, b: int) -> bytes:
@@ -555,6 +571,30 @@ def compact_canvas_command(canvas: bytes) -> bytes:
     return command
 
 
+
+NATIVE_GAME_SINGLE_WRITE_LIMIT = 512
+
+
+def build_native_game(name: str, source: str) -> bytes:
+    """Validate and encode the safe source-only uploaded-game subset."""
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,15}", name):
+        raise ValueError("name must start with a letter and contain at most 16 letters, digits, _ or -")
+    if not source.strip():
+        raise ValueError("generated source is empty")
+    if "// <<< PARSER SPLIT >>>" in source:
+        raise ValueError("multi-section source packages are not supported by the block editor")
+    if any(line.startswith("var") for line in source.splitlines()):
+        raise ValueError("unsafe top-level var declaration; it would be extracted by the stock loader")
+    if re.search(r"\}\s*\)\s*\(\s*\)\s*;?", source):
+        raise ValueError("unsafe immediately-invoked function expression")
+    payload = GameMessage.source_game(name, source)
+    if len(payload) > NATIVE_GAME_SINGLE_WRITE_LIMIT:
+        raise ValueError(
+            f"game payload is {len(payload)} bytes; the proven single-write limit is "
+            f"{NATIVE_GAME_SINGLE_WRITE_LIMIT} bytes"
+        )
+    return payload
+
 # One BLE radio: never scan while a connect attempt is in flight, and never
 # run two connect attempts in parallel. Either combination can leave the
 # Windows stack holding zombie connections, and a connected Arcade Coder stops
@@ -760,6 +800,24 @@ class BleSession:
         self.add_log(f"sent canvas {len(canvas)} bytes hex: {spaced_hex(canvas)} | dec: {decimal_bytes(canvas)}")
         return {"canvasBytes": len(canvas), "commandHex": command.hex()}
 
+    async def upload_native_game(self, name: str, source: str, frequency: float) -> dict[str, object]:
+        payload = build_native_game(name, source)
+        start_command = CommandMessage.start_game(name, frequency)
+        await self.ensure_connected()
+        self.add_log(f"uploading native game {name!r}: {len(payload)} bytes")
+        await self.write_with_retry(GAME_CHAR, payload, response=False)
+        await asyncio.sleep(2.0)
+        self.add_log(f"starting native game {name!r} at {frequency:g} Hz")
+        await self.write_with_retry(COMMAND_CHAR, start_command, response=False)
+        self.started_paint = False
+        return {
+            "name": name,
+            "sourceChars": len(source),
+            "payloadBytes": len(payload),
+            "payloadHex": payload.hex(),
+            "startCommandHex": start_command.hex(),
+            "frequency": frequency,
+        }
     def status(self) -> dict[str, object]:
         decoded = decode_compact_canvas(self.last_notify) if self.last_notify else None
         return {
@@ -1252,9 +1310,10 @@ class Handler(BaseHTTPRequestHandler):
                     if not isinstance(pixel, list) or len(pixel) != 3:
                         raise ValueError(f"pixel {index} must be [r,g,b]")
                     rgb.extend(max(0, min(255, int(channel))) for channel in pixel)
-                canvas = compact_canvas_from_rgb(width, height, bytes(rgb))
+                compression = str(body.get("compression", "huffman"))
+                canvas = compact_canvas_from_rgb(width, height, bytes(rgb), compression=compression)
                 result = STATE.run(session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
-                json_response(self, 200, {"ok": True, "width": width, "height": height, **result, "status": session.status()})
+                json_response(self, 200, {"ok": True, "width": width, "height": height, "compression": compression, **result, "status": session.status()})
             elif self.path == "/api/mutate":
                 source = str(body.get("source", "br"))
                 canvas_hex = CANVASES.get(source, source)
@@ -1356,6 +1415,34 @@ class Handler(BaseHTTPRequestHandler):
                 canvas = compact_canvas_from_rgb(width, height, bytes(rgb_data))
                 result = STATE.run(session.send_compact_canvas(canvas, bool(body.get("startIfNeeded", False))))
                 json_response(self, 200, {"ok": True, "number": number, **result, "status": session.status()})
+            elif self.path == "/api/build-native-game":
+                name = str(body.get("name", "scratch1")).strip()
+                source = str(body.get("source", ""))
+                frequency = float(body.get("frequency", 8.0))
+                if not 0.5 <= frequency <= 30:
+                    raise ValueError("frequency must be between 0.5 and 30 Hz")
+                payload = build_native_game(name, source)
+                start_command = CommandMessage.start_game(name, frequency)
+                json_response(self, 200, {
+                    "ok": True,
+                    "name": name,
+                    "sourceChars": len(source),
+                    "payloadBytes": len(payload),
+                    "payloadHex": payload.hex(),
+                    "startCommandHex": start_command.hex(),
+                    "frequency": frequency,
+                    "limit": NATIVE_GAME_SINGLE_WRITE_LIMIT,
+                })
+            elif self.path == "/api/upload-native-game":
+                if body.get("riskAccepted") is not True and body.get("uartAttached") is not True:
+                    raise ValueError("accept the native-code upload risk before uploading")
+                name = str(body.get("name", "scratch1")).strip()
+                source = str(body.get("source", ""))
+                frequency = float(body.get("frequency", 8.0))
+                if not 0.5 <= frequency <= 30:
+                    raise ValueError("frequency must be between 0.5 and 30 Hz")
+                result = STATE.run(session.upload_native_game(name, source, frequency), timeout=40)
+                json_response(self, 200, {"ok": True, **result, "status": session.status()})
             elif self.path == "/api/observe":
                 row = {"time": time.time(), **body}
                 with OBS_PATH.open("a", encoding="utf-8") as handle:

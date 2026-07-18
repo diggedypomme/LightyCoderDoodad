@@ -6,7 +6,7 @@ It is deliberately separate from the Python/web UI so both can evolve independen
 
 ## Current features
 
-- BLE scan/connect button.
+- Connect uses the saved Arcade Coder; Scan opens a device picker and saves the chosen MAC address.
 - Start stock `paint` module.
 - 12x12 pad.
 - Colour selection.
@@ -14,7 +14,7 @@ It is deliberately separate from the Python/web UI so both can evolve independen
 - Multi-cell selection.
 - Send selected/generated grid as a compact canvas.
 - Image page that loads from gallery or files, supports centre crop/fit/drag/pinch zoom, has a pixel-preview toggle, downsamples the visible crop to 12x12, and sends it.
-- Animation page with wipe/pulse/rainbow/heart/sparkle/scanner/tetris/snake/comet examples streamed as compact canvases.
+- Animation page with wipe/pulse/rainbow/heart/sparkle/scanner/tetris/snake/comet examples, plus a pasted custom animation runner, all streamed as compact canvases.
 - Animation stop, faster, and slower controls.
 
 ## Prebuilt Debug APK
@@ -76,6 +76,4 @@ The Android app uses the same working path as the Python UI:
 ## Important caveats
 
 - This is a first native Android scaffold, not a polished Play Store app.
-- It does not yet persist a chosen device address.
-- It does not yet include a manual device picker if several matching devices are present.
 - If image frames fail to send, try simpler images or the pad page first to confirm BLE is working.

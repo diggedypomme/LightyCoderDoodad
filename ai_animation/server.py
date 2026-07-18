@@ -361,8 +361,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/board/send-frame":
+                # Force the firmware-compatible literal-only DEFLATE mode even
+                # when an older cached frontend omits the field.
+                frame_body = json.loads(body.decode("utf-8"))
+                frame_body.setdefault("compression", "huffman")
+                forwarded_body = json.dumps(frame_body).encode("utf-8")
                 status, resp_body, _ = _proxy_post(
-                    f"{BOARD_URL}/api/send-rgb-buffer", body
+                    f"{BOARD_URL}/api/send-rgb-buffer", forwarded_body
                 )
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
