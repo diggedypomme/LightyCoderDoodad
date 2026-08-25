@@ -122,6 +122,7 @@ start_ui_no_env.bat       :: system Python, no UART
 - `tests/` — native protocol, block compiler, and Paint compression regression checks.
 - `docs/` — setup, architecture, reverse-engineering findings, and roadmap.
 - `android/` — native Android controller and debug APK.
+- `web_bluetooth/` — browser-only Paint MVP using Web Bluetooth, with no Python backend.
 - `examples/esp32_arcade_paint/` — direct BLE control from another ESP32.
 
 ## Device address selection

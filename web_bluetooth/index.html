@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LightyCoderDoodad · browser paint test</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Web Bluetooth prototype</p>
+      <h1>Arcade Coder paint test</h1>
+      <p>No Python, app, account, or build step. Your browser talks directly to the board.</p>
+    </header>
+
+    <section class="panel connection">
+      <div>
+        <span class="label">Board status</span>
+        <strong id="status" role="status">Ready to connect</strong>
+      </div>
+      <div class="buttons">
+        <button id="connect" class="primary">Connect board</button>
+        <button id="startPaint" disabled>Start Paint</button>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel painter">
+        <div class="painter-heading">
+          <div>
+            <span class="label">12 × 12 canvas</span>
+            <h2>Tap squares to toggle them</h2>
+          </div>
+          <label class="colour">Colour <input id="colour" type="color" value="#ff5500"></label>
+        </div>
+        <div id="grid" class="grid"></div>
+        <div class="buttons bottom">
+          <button id="send" class="primary" disabled>Send canvas</button>
+          <button id="clear">Clear locally</button>
+        </div>
+      </div>
+
+      <aside class="panel notes">
+        <span class="label">Quick test</span>
+        <ol>
+          <li>Power on the Arcade Coder.</li>
+          <li>Open this page in desktop Chrome or Edge.</li>
+          <li>Connect, choose the board, draw a few pixels, then send.</li>
+        </ol>
+        <p>Only the chosen device is granted to this page. Bluetooth discovery must begin from your click.</p>
+        <details>
+          <summary>Activity log</summary>
+          <pre id="log" aria-live="polite"></pre>
+        </details>
+      </aside>
+    </section>
+  </main>
+  <script src="protocol.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
