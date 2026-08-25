@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
   <title>LightyCoderDoodad · browser paint test</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <main>
@@ -22,6 +23,7 @@
       <div class="buttons">
         <button id="connect" class="primary">Connect board</button>
         <button id="startPaint" disabled>Start Paint</button>
+        <button id="resetBoard" disabled>Disconnect / forget</button>
       </div>
     </section>
 
@@ -45,10 +47,11 @@
         <span class="label">Quick test</span>
         <ol>
           <li>Power on the Arcade Coder.</li>
-          <li>Open this page in desktop Chrome or Edge.</li>
+          <li>Open this page in Chrome or Edge.</li>
           <li>Connect, choose the board, draw a few pixels, then send.</li>
         </ol>
         <p>Only the chosen device is granted to this page. Bluetooth discovery must begin from your click.</p>
+        <p><strong>PC recovery:</strong> Disconnect / forget drops this page's GATT connection and revokes its remembered permission. It cannot remove a Windows pairing; do that in Windows Bluetooth settings if the adapter remains stuck.</p>
         <details>
           <summary>Activity log</summary>
           <pre id="log" aria-live="polite"></pre>

@@ -12,6 +12,7 @@ const logEl = document.querySelector("#log");
 const colourEl = document.querySelector("#colour");
 const connectButton = document.querySelector("#connect");
 const startButton = document.querySelector("#startPaint");
+const resetButton = document.querySelector("#resetBoard");
 const sendButton = document.querySelector("#send");
 const clearButton = document.querySelector("#clear");
 
@@ -29,6 +30,7 @@ function setControls() {
   connectButton.textContent = connected ? "Disconnect" : "Connect board";
   startButton.disabled = !connected;
   sendButton.disabled = !connected;
+  resetButton.disabled = !device;
 }
 
 function hexToRgb(value) {
@@ -106,6 +108,25 @@ async function startPaint() {
   log("Sent stock paint start command");
 }
 
+async function resetBoardAccess() {
+  if (!device) throw new Error("Select a board first");
+  const name = device.name || "board";
+  if (device.gatt?.connected) device.gatt.disconnect();
+  commandCharacteristic = null;
+  paintStarted = false;
+
+  if (typeof device.forget === "function") {
+    await device.forget();
+    log(`Disconnected and revoked this site's permission for ${name}`);
+    setStatus(`${name} disconnected and forgotten by this site`);
+  } else {
+    log(`Disconnected ${name}; this browser cannot revoke its permission`);
+    setStatus(`${name} disconnected. Remove it in browser/site settings if needed.`);
+  }
+  device = null;
+  setControls();
+}
+
 async function sendCanvas() {
   if (!paintStarted) {
     await startPaint();
@@ -127,6 +148,11 @@ connectButton.addEventListener("click", () => connect().catch((error) => {
 startButton.addEventListener("click", () => startPaint().catch((error) => {
   setStatus(error.message, "error");
   log(error.message);
+}));
+resetButton.addEventListener("click", () => resetBoardAccess().catch((error) => {
+  setStatus(error.message, "error");
+  log(error.message);
+  setControls();
 }));
 sendButton.addEventListener("click", () => sendCanvas().catch((error) => {
   setStatus(error.message, "error");
